@@ -73,10 +73,13 @@ if os.path.exists(FILE_VENTAS):
         df_ventas["SALDO_PENDIENTE"] = 0.0
         df_ventas["ESTADO"] = "Pagado y Entregado"
         df_ventas.to_csv(FILE_VENTAS, index=False)
+    if "DIRECCION" not in df_ventas.columns:
+        df_ventas["DIRECCION"] = "S/N"
+        df_ventas.to_csv(FILE_VENTAS, index=False)
 else:
     df_ventas = pd.DataFrame(columns=[
         "FECHA", "CATEGORIA", "CANTIDAD", "PRECIO_UNITARIO", "TOTAL", 
-        "ABONADO", "SALDO_PENDIENTE", "METODO_PAGO", "CLIENTE", "CEDULA", "TELEFONO", "CORREO", "ESTADO"
+        "ABONADO", "SALDO_PENDIENTE", "METODO_PAGO", "CLIENTE", "CEDULA", "TELEFONO", "CORREO", "DIRECCION", "ESTADO"
     ])
     df_ventas.to_csv(FILE_VENTAS, index=False)
 
@@ -147,7 +150,6 @@ with tab_ops:
     if df_inv.empty:
         st.info("No hay productos en el inventario.")
     else:
-        # Mostramos inventario rápido arriba
         cols = st.columns(len(df_inv))
         iconos = {"Camas": "🛏️", "Colchones": "💤", "Armarios": "🚪", "Pajaritas": "🎀"}
         for idx, row in df_inv.iterrows():
@@ -166,7 +168,13 @@ with tab_ops:
             pago = c2.selectbox("Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
             
             cliente = st.text_input("Nombre del Cliente", value="Cliente General")
-            celda = st.text_input("Cédula / Teléfono", value="S/N")
+            
+            cc1, cc2 = st.columns(2)
+            celda = cc1.text_input("Cédula / RUC", value="S/N")
+            telefono = cc2.text_input("Teléfono", value="")
+            
+            correo = st.text_input("Correo electrónico", value="")
+            direccion = st.text_input("Dirección", value="")
             
             total = cant * precio_unit
             st.markdown(f"### Total a Cobrar: ${total:,.2f}")
@@ -178,22 +186,25 @@ with tab_ops:
                     df_inv.loc[df_inv["CATEGORIA"] == categoria_sel, "STOCK"] -= cant
                     df_inv.to_csv(FILE_INV, index=False)
                     
+                    df_actual_v = pd.read_csv(FILE_VENTAS)
+                    if "DIRECCION" not in df_actual_v.columns:
+                        df_actual_v["DIRECCION"] = "S/N"
+                        
                     nueva = pd.DataFrame([{
                         "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "CATEGORIA": categoria_sel, "CANTIDAD": cant, "PRECIO_UNITARIO": precio_unit,
                         "TOTAL": total, "ABONADO": total, "SALDO_PENDIENTE": 0.0,
                         "METODO_PAGO": pago, "CLIENTE": cliente, "CEDULA": celda,
-                        "TELEFONO": "", "CORREO": "", "ESTADO": "Pagado y Entregado"
+                        "TELEFONO": telefono, "CORREO": correo, "DIRECCION": direccion, "ESTADO": "Pagado y Entregado"
                     }])
-                    pd.concat([pd.read_csv(FILE_VENTAS), nueva], ignore_index=True).to_csv(FILE_VENTAS, index=False)
+                    pd.concat([df_actual_v, nueva], ignore_index=True).to_csv(FILE_VENTAS, index=False)
                     st.success("¡Venta procesada y stock descontado con éxito!")
                     st.rerun()
 
-# ================= TAB 2: APARTADOS Y ABONOS (SUPER FÁCIL) =================
+# ================= TAB 2: APARTADOS Y ABONOS (CON DATOS COMPLETOS) =================
 with tab_apartados:
     st.markdown("### 📦 Gestión de Apartados y Clientes")
     
-    # Botón desplegable o sección limpia para crear apartado nuevo directamente aquí
     with st.expander("➕ CREAR NUEVO APARTADO (Hacer clic para abrir)", expanded=True):
         if not df_inv.empty:
             with st.form("form_nuevo_ap"):
@@ -205,7 +216,13 @@ with tab_apartados:
                 ap_abono = c_a2.number_input("Dinero que deja abonando hoy ($)", min_value=0.0, value=10.0, step=5.0)
                 
                 ap_cliente = st.text_input("Nombre y Apellido del Cliente")
-                ap_cel = st.text_input("Teléfono o Cédula")
+                
+                c_inf1, c_inf2 = st.columns(2)
+                ap_ced = c_inf1.text_input("Cédula / DNI")
+                ap_tel = c_inf2.text_input("Teléfono de contacto")
+                
+                ap_corr = st.text_input("Correo electrónico")
+                ap_dir = st.text_input("Dirección")
                 
                 precio_p = float(p_info["PRECIO"])
                 tot_p = ap_cant * precio_p
@@ -217,16 +234,19 @@ with tab_apartados:
                     if ap_cliente.strip() == "":
                         st.warning("Por favor ingresa el nombre del cliente.")
                     else:
+                        df_actual_v = pd.read_csv(FILE_VENTAS)
+                        if "DIRECCION" not in df_actual_v.columns:
+                            df_actual_v["DIRECCION"] = "S/N"
+                            
                         nuevo_ap = pd.DataFrame([{
                             "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
                             "CATEGORIA": ap_cat, "CANTIDAD": ap_cant, "PRECIO_UNITARIO": precio_p,
                             "TOTAL": tot_p, "ABONADO": ap_abono, "SALDO_PENDIENTE": max(0.0, saldo_p),
-                            "METODO_PAGO": "Efectivo", "CLIENTE": ap_cliente, "CEDULA": ap_cel,
-                            "TELEFONO": "", "CORREO": "", 
+                            "METODO_PAGO": "Efectivo", "CLIENTE": ap_cliente, "CEDULA": ap_ced,
+                            "TELEFONO": ap_tel, "CORREO": ap_corr, "DIRECCION": ap_dir, 
                             "ESTADO": "Pagado y Entregado" if saldo_p <= 0 else "Apartado (Pendiente)"
                         }])
                         
-                        # Si por coincidencia pagó todo de una vez
                         if saldo_p <= 0:
                             df_inv.loc[df_inv["CATEGORIA"] == ap_cat, "STOCK"] -= ap_cant
                             df_inv.to_csv(FILE_INV, index=False)
@@ -234,7 +254,7 @@ with tab_apartados:
                         else:
                             st.success(f"¡Apartado guardado para {ap_cliente}! Quedó guardado en bodega.")
                             
-                        pd.concat([pd.read_csv(FILE_VENTAS), nuevo_ap], ignore_index=True).to_csv(FILE_VENTAS, index=False)
+                        pd.concat([df_actual_v, nuevo_ap], ignore_index=True).to_csv(FILE_VENTAS, index=False)
                         st.rerun()
 
     st.markdown("---")
@@ -242,9 +262,11 @@ with tab_apartados:
     
     df_v = pd.read_csv(FILE_VENTAS) if os.path.exists(FILE_VENTAS) else pd.DataFrame()
     if not df_v.empty and "ESTADO" in df_v.columns:
+        if "DIRECCION" not in df_v.columns:
+            df_v["DIRECCION"] = "S/N"
+            
         pendientes = df_v[df_v["ESTADO"].str.contains("Apartado", case=False, na=False)]
         
-        # Mensaje de éxito si alguien terminó de pagar
         if "msg_exito" in st.session_state:
             st.markdown(st.session_state["msg_exito"], unsafe_allow_html=True)
             if st.button("✖️ Cerrar aviso"):
@@ -254,8 +276,9 @@ with tab_apartados:
         if pendientes.empty:
             st.success("✨ ¡No hay apartados pendientes en este momento!")
         else:
-            # Mostramos una tabla bonita y limpia para identificar rápido
-            st.dataframe(pendientes[["CLIENTE", "CATEGORIA", "CANTIDAD", "TOTAL", "ABONADO", "SALDO_PENDIENTE"]], use_container_width=True)
+            # Mostramos las columnas clave incluyendo teléfono y dirección
+            cols_mostrar = [c for c in ["CLIENTE", "TELEFONO", "DIRECCION", "CATEGORIA", "CANTIDAD", "TOTAL", "ABONADO", "SALDO_PENDIENTE"] if c in pendientes.columns]
+            st.dataframe(pendientes[cols_mostrar], use_container_width=True)
             
             st.markdown("#### 💸 Registrar Abono a un Cliente")
             ops = [f"Fila {i} | Cliente: {r['CLIENTE']} | Producto: {r['CATEGORIA']} | Debe: ${r['SALDO_PENDIENTE']}" for i, r in pendientes.iterrows()]
