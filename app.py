@@ -104,7 +104,9 @@ if os.path.exists(FILE_INV):
         df_inv["PRECIO"] = 0.0
 else:
     df_inv = pd.DataFrame([
-        {"CATEGORIA": "Camas", "STOCK": 0, "PRECIO": 0.0},
+        {"CATEGORIA": "Cama Tapizada", "STOCK": 0, "PRECIO": 150.0},
+        {"CATEGORIA": "Cama de Madera", "STOCK": 0, "PRECIO": 140.0},
+        {"CATEGORIA": "Cama Mixta", "STOCK": 0, "PRECIO": 145.0},
         {"CATEGORIA": "Colchones", "STOCK": 0, "PRECIO": 0.0},
         {"CATEGORIA": "Armarios Grandes", "STOCK": 0, "PRECIO": 0.0},
         {"CATEGORIA": "Armarios Pequeños", "STOCK": 0, "PRECIO": 0.0},
@@ -225,11 +227,12 @@ with tab_ops:
     if df_inv.empty:
         st.info("No hay productos en el inventario.")
     else:
-        cols = st.columns(len(df_inv))
-        iconos = {"Camas": "🛏️", "Colchones": "💤", "Armarios Grandes": "🚪", "Armarios Pequeños": "🚪", "Pajaritas": "🎀"}
+        cols = st.columns(len(df_inv) if len(df_inv) <= 6 else 6)
+        iconos = {"Cama Tapizada": "🛏️", "Cama de Madera": "🪵", "Cama Mixta": "🛏️", "Colchones": "💤", "Armarios Grandes": "🚪", "Armarios Pequeños": "🚪", "Pajaritas": "🎀"}
         for idx, row in df_inv.iterrows():
             cat = row["CATEGORIA"]
-            cols[idx].metric(label=f"{iconos.get(cat, '📦')} {cat}", value=f"{int(row['STOCK'])} ud", delta=f"${row['PRECIO']:,.2f}")
+            col_target = cols[idx % len(cols)]
+            col_target.metric(label=f"{iconos.get(cat, '📦')} {cat}", value=f"{int(row['STOCK'])} ud", delta=f"${row['PRECIO']:,.2f}")
 
         st.markdown("---")
         categoria_sel = st.selectbox("Selecciona el Producto", df_inv["CATEGORIA"].tolist(), key="v_cat")
@@ -242,7 +245,7 @@ with tab_ops:
             cant = c1.number_input("Cantidad", min_value=1, value=1, step=1)
             pago = c2.selectbox("Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
             
-            # 🏷️ CAMPO DE DESCUENTO
+            # 🏷️ CAMPO DE DESCUENTO (Límite $10)
             descuento = st.number_input("Descuento ($)", min_value=0.0, value=0.0, step=1.0)
             
             if descuento > 10.0:
@@ -499,12 +502,12 @@ with tab_inventario:
         st.success("Acceso concedido")
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("#### Modificar Stock")
+            st.markdown("#### Modificar Stock o Precio")
             if not df_inv.empty:
                 prod_m = st.selectbox("Producto", df_inv["CATEGORIA"].tolist())
                 act_s = st.number_input("Sumar / Restar stock (+ o -)", value=0, step=1)
                 nue_p = st.number_input("Nuevo Precio ($)", value=float(df_inv[df_inv["CATEGORIA"] == prod_m]["PRECIO"].values[0]))
-                if st.button("Actualizar Stock"):
+                if st.button("Actualizar Stock/Precio"):
                     idx = df_inv[df_inv["CATEGORIA"] == prod_m].index[0]
                     df_inv.loc[idx, "STOCK"] = max(0, int(df_inv.loc[idx, "STOCK"]) + act_s)
                     df_inv.loc[idx, "PRECIO"] = nue_p
@@ -522,6 +525,17 @@ with tab_inventario:
                     pd.concat([df_inv, nuevo_reg], ignore_index=True).to_csv(FILE_INV, index=False)
                     st.success("¡Creado!")
                     st.rerun()
+
+        st.markdown("---")
+        st.markdown("#### 🗑️ Eliminar Producto del Inventario")
+        if not df_inv.empty:
+            prod_a_borrar = st.selectbox("Selecciona el producto que deseas eliminar por completo", df_inv["CATEGORIA"].tolist(), key="sel_borrar_prod")
+            if st.button("❌ ELIMINAR ESTE PRODUCTO PERMANENTEMENTE"):
+                df_inv = df_inv[df_inv["CATEGORIA"] != prod_a_borrar].reset_index(drop=True)
+                df_inv.to_csv(FILE_INV, index=False)
+                st.success(f"¡El producto '{prod_a_borrar}' fue eliminado del inventario!")
+                st.rerun()
+
     elif pass_inv != "":
         st.error("Clave incorrecta")
 
