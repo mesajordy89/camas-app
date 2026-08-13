@@ -35,7 +35,7 @@ else:
     ])
     df_ventas.to_csv(FILE_VENTAS, index=False)
 
-# Estilos visuales
+# Estilos visuales amigables
 st.markdown("""
     <style>
     .stApp { background-color: #f8f9fa; }
@@ -53,6 +53,7 @@ st.markdown("""
         border-radius: 8px;
         font-weight: bold;
         width: 100%;
+        height: 45px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -60,7 +61,7 @@ st.markdown("""
 st.markdown("""
     <div class="header-box">
         <h1 style="color:white; margin:0;">🏪 Local Mesitas - Control de Inventario y Ventas</h1>
-        <p style="margin:5px 0 0 0;">Sistema integral con alertas inteligentes y gestión dinámica</p>
+        <p style="margin:5px 0 0 0;">Sistema ágil, rápido y simplificado</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -68,13 +69,13 @@ st.markdown("""
 stock_critico = df_inv[df_inv["STOCK"] <= 2]
 if not stock_critico.empty:
     productos_bajos = ", ".join([f"**{row['CATEGORIA']}** ({row['STOCK']} ud.)" for _, row in stock_critico.iterrows()])
-    st.warning(f"🚨 **ALERTA DE STOCK CRÍTICO:** Los siguientes productos tienen poca o nula existencia: {productos_bajos}. ¡Reabastece pronto!")
+    st.warning(f"🚨 **ATENCIÓN - STOCK BAJO:** {productos_bajos}. ¡Reabastece pronto!")
 
-tab_ops, tab_inventario, tab_historial = st.tabs(["⚡ Operaciones y Ventas", "🛠️ Administrar Inventario y Productos", "📜 Historial y Reportes"])
+tab_ops, tab_inventario, tab_historial = st.tabs(["⚡ Vender y Operaciones", "🛠️ Inventario y Catálogo", "📜 Historial y Cierre de Caja"])
 
 with tab_ops:
     # --- VISTA GENERAL DE INVENTARIO ---
-    st.markdown("### 📊 Estado Actual del Inventario")
+    st.markdown("### 📊 Estado Rápido del Stock")
     
     iconos = {"Camas": "🛏️", "Colchones": "💤", "Armarios": "🚪", "Pajaritas": "🎀"}
     cols = st.columns(len(df_inv) if len(df_inv) > 0 else 1)
@@ -98,43 +99,42 @@ with tab_ops:
     
     # --- REGISTRAR VENTA ---
     with col_vender:
-        st.markdown("### 🛒 Registrar Venta")
+        st.markdown("### 🛒 Registrar Venta Rápida")
         
         if df_inv.empty:
             st.info("No hay productos registrados en el inventario.")
         else:
-            categoria_sel = st.selectbox("Seleccionar Producto", df_inv["CATEGORIA"].tolist(), key="select_vender_cat")
+            categoria_sel = st.selectbox("1️⃣ Selecciona el Producto", df_inv["CATEGORIA"].tolist(), key="select_vender_cat")
             
             row_sel = df_inv[df_inv["CATEGORIA"] == categoria_sel].iloc[0]
             stock_disponible = int(row_sel["STOCK"])
             precio_unitario = float(row_sel["PRECIO"])
             
             with st.form(key="form_venta_unificado"):
-                cant_vender = st.number_input("Cantidad Vendida", min_value=1, value=1, step=1)
-                metodo_pago = st.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta", "Crédito / Cuotas"])
+                cant_vender = st.number_input("2️⃣ Cantidad Vendida", min_value=1, value=1, step=1)
+                metodo_pago = st.selectbox("3️⃣ Método de Pago", ["Efectivo", "Transferencia", "Tarjeta", "Crédito / Cuotas"])
                 
-                st.markdown("**Datos del Cliente:**")
-                cliente_nom = st.text_input("Nombre y Apellido")
-                cliente_ced = st.text_input("Cédula / DNI")
-                cliente_tel = st.text_input("Teléfono")
-                cliente_cor = st.text_input("Correo")
+                st.markdown("---")
+                st.markdown("**4️⃣ Datos del Cliente (Opcional pero recomendado):**")
+                cliente_nom = st.text_input("Nombre y Apellido", value="Cliente General")
+                cliente_ced = st.text_input("Cédula / DNI", value="S/N")
+                cliente_tel = st.text_input("Teléfono", value="")
+                cliente_cor = st.text_input("Correo", value="")
                 
                 total_calculado = float(cant_vender) * float(precio_unitario)
                 
                 st.markdown(f"""
-                    <div style="background-color: #eef2f5; padding: 12px; border-radius: 8px; text-align: center; margin: 10px 0;">
-                        <p style="margin:0; font-size: 14px; color: #555;">Precio unitario: ${precio_unitario:,.2f}</p>
-                        <h3 style="margin:0; color: #1e3c72;">Total a cobrar: <b>${total_calculado:,.2f}</b></h3>
+                    <div style="background-color: #eef2f5; padding: 10px; border-radius: 8px; text-align: center; margin: 10px 0;">
+                        <p style="margin:0; font-size: 13px; color: #555;">Precio unitario: ${precio_unitario:,.2f}</p>
+                        <h3 style="margin:0; color: #1e3c72;">TOTAL A COBRAR: <b>${total_calculado:,.2f}</b></h3>
                     </div>
                 """, unsafe_allow_html=True)
                 
-                btn_vender = st.form_submit_button("🛍️ CONFIRMAR VENTA")
+                btn_vender = st.form_submit_button("🛍️ CONFIRMAR Y REGISTRAR VENTA")
                 
                 if btn_vender:
                     if cant_vender > stock_disponible:
                         st.error(f"❌ Inventario insuficiente. Solo quedan {stock_disponible} unidades.")
-                    elif cliente_nom.strip() == "":
-                        st.warning("⚠️ Debes ingresar el nombre del cliente.")
                     else:
                         df_inv.loc[df_inv["CATEGORIA"] == categoria_sel, "STOCK"] -= cant_vender
                         df_inv.to_csv(FILE_INV, index=False)
@@ -154,9 +154,8 @@ with tab_ops:
                         df_v_act = pd.concat([df_ventas, nueva_venta], ignore_index=True)
                         df_v_act.to_csv(FILE_VENTAS, index=False)
                         
-                        st.success(f"¡Venta realizada por ${total_calculado:,.2f}!")
+                        st.success(f"¡Venta registrada con éxito!")
                         
-                        # Guardar el comprobante con formato de texto limpio asegurando el total
                         st.session_state["ultimo_recibo"] = f"""*LOCAL MESITAS - COMPROBANTE DE VENTA*
 --------------------------------
 📅 Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M')}
@@ -171,14 +170,14 @@ with tab_ops:
 
     # --- RECIBO RÁPIDO PARA COMPARTIR ---
     with col_ticket:
-        st.markdown("### 🧾 Comprobante / Recibo Reciente")
+        st.markdown("### 🧾 Comprobante para WhatsApp")
         if "ultimo_recibo" in st.session_state:
-            st.text_area("Copia este mensaje para WhatsApp:", value=st.session_state["ultimo_recibo"], height=190)
+            st.text_area("Copia este mensaje listo para enviar:", value=st.session_state["ultimo_recibo"], height=230)
         else:
-            st.info("💡 Realiza una venta para generar el comprobante instantáneo y enviarlo por WhatsApp al cliente.")
+            st.info("💡 Aquí aparecerá el comprobante automático de la última venta lista para que la copies y envíes por WhatsApp.")
 
 with tab_inventario:
-    st.markdown("### 🛠️ Gestión Avanzada de Inventario y Creación de Productos")
+    st.markdown("### 🛠️ Administración de Inventario y Productos")
     clave = st.text_input("🔑 Clave Administrador", type="password", key="admin_key_input")
     
     if clave == CLAVE_ADMIN:
@@ -186,19 +185,19 @@ with tab_inventario:
         c_ing, c_crear = st.columns(2)
         
         with c_ing:
-            st.markdown("#### 📦 Modificar Stock / Precio Existente")
+            st.markdown("#### 📦 Modificar Stock / Precio")
             if not df_inv.empty:
-                cat_admin = st.selectbox("Producto a Modificar", df_inv["CATEGORIA"].tolist(), key="select_admin_cat")
+                cat_admin = st.selectbox("Seleccionar Producto", df_inv["CATEGORIA"].tolist(), key="select_admin_cat")
                 row_admin = df_inv[df_inv["CATEGORIA"] == cat_admin].iloc[0]
                 stk_actual = int(row_admin["STOCK"])
                 prc_actual = float(row_admin["PRECIO"])
                 
                 with st.form(key="form_admin_unificado"):
                     st.markdown(f"Stock actual de **{cat_admin}**: `{stk_actual}` unidades")
-                    ajuste_stock = st.number_input("Ajustar unidades (+ para sumar, - para restar)", value=0, step=1)
+                    ajuste_stock = st.number_input("Ajustar unidades (+ sumar, - restar)", value=0, step=1)
                     nuevo_precio = st.number_input("Precio Unitario ($)", min_value=0.0, value=prc_actual, step=5.0)
                     
-                    if st.form_submit_button("💾 ACTUALIZAR STOCK Y PRECIO"):
+                    if st.form_submit_button("💾 ACTUALIZAR DATOS"):
                         idx = df_inv[df_inv["CATEGORIA"] == cat_admin].index
                         if not idx.empty:
                             nuevo_stock_total = stk_actual + ajuste_stock
@@ -207,15 +206,15 @@ with tab_inventario:
                             df_inv.loc[idx, "STOCK"] = nuevo_stock_total
                             df_inv.loc[idx, "PRECIO"] = nuevo_precio
                             df_inv.to_csv(FILE_INV, index=False)
-                        st.success(f"¡Inventario de {cat_admin} actualizado!")
+                        st.success(f"¡Actualizado correctamente!")
                         st.rerun()
             else:
                 st.info("No hay productos.")
 
         with c_crear:
-            st.markdown("#### ✨ Crear Nuevo Producto o Categoría")
+            st.markdown("#### ✨ Crear Nuevo Producto")
             with st.form(key="form_nuevo_prod"):
-                nuevo_prod_nombre = st.text_input("Nombre del nuevo artículo (ej. Almohadas)")
+                nuevo_prod_nombre = st.text_input("Nombre del producto (ej. Almohadas)")
                 nuevo_prod_stock = st.number_input("Stock Inicial", min_value=0, value=10, step=1)
                 nuevo_prod_precio = st.number_input("Precio Unitario ($)", min_value=0.0, value=25.0, step=5.0)
                 
@@ -223,7 +222,7 @@ with tab_inventario:
                     if nuevo_prod_nombre.strip() == "":
                         st.warning("Escribe un nombre válido.")
                     elif nuevo_prod_nombre.capitalize() in df_inv["CATEGORIA"].values:
-                        st.error("Este producto ya existe en el inventario.")
+                        st.error("Este producto ya existe.")
                     else:
                         fila_nueva = pd.DataFrame([{
                             "CATEGORIA": nuevo_prod_nombre.strip().capitalize(),
@@ -232,29 +231,39 @@ with tab_inventario:
                         }])
                         df_inv = pd.concat([df_inv, fila_nueva], ignore_index=True)
                         df_inv.to_csv(FILE_INV, index=False)
-                        st.success(f"¡Producto '{nuevo_prod_nombre}' agregado exitosamente!")
+                        st.success(f"¡Creado con éxito!")
                         st.rerun()
     elif clave != "":
         st.error("Clave incorrecta")
     else:
-        st.info("Ingresa la clave `1234` para desbloquear la administración.")
+        st.info("Ingresa la clave `1234` para desbloquear.")
 
 with tab_historial:
-    st.markdown("### 📜 Historial, Reportes y Anulación de Ventas")
+    st.markdown("### 📜 Historial y Cierre de Caja por Método de Pago")
     
     if os.path.exists(FILE_VENTAS):
         df_v_hist = pd.read_csv(FILE_VENTAS)
         if df_v_hist.empty:
             st.info("Aún no hay ventas registradas.")
         else:
-            total_recaudado = df_v_hist["TOTAL"].sum() if "TOTAL" in df_v_hist.columns else 0
+            # --- MEJORA 3: RESUMEN DE CAJA POR MÉTODO DE PAGO ---
+            st.markdown("#### 💵 Cierre de Caja Actual (Ingresos por Método de Pago)")
             
-            k1, k2 = st.columns(2)
-            k1.metric("💰 Recaudación Total", f"${total_recaudado:,.2f}")
-            k2.metric("🛍️ Total Transacciones", f"{len(df_v_hist)} ventas")
+            tot_efectivo = df_v_hist[df_v_hist["METODO_PAGO"] == "Efectivo"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
+            tot_trans = df_v_hist[df_v_hist["METODO_PAGO"] == "Transferencia"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
+            tot_tarjeta = df_v_hist[df_v_hist["METODO_PAGO"] == "Tarjeta"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
+            tot_credito = df_v_hist[df_v_hist["METODO_PAGO"] == "Crédito / Cuotas"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
+            tot_general = df_v_hist["TOTAL"].sum() if "TOTAL" in df_v_hist.columns else 0
+
+            m1, m2, m3, m4, m5 = st.columns(5)
+            m1.metric("💵 Efectivo", f"${tot_efectivo:,.2f}")
+            m2.metric("🏦 Transf.", f"${tot_trans:,.2f}")
+            m3.metric("💳 Tarjeta", f"${tot_tarjeta:,.2f}")
+            m4.metric("📄 Crédito", f"${tot_credito:,.2f}")
+            m5.metric("💰 TOTAL", f"${tot_general:,.2f}")
             
             st.markdown("---")
-            busqueda = st.text_input("🔍 Buscar Cliente o Cédula:")
+            busqueda = st.text_input("🔍 Buscar por Cliente o Cédula:")
             if busqueda:
                 df_filtrado = df_v_hist[
                     df_v_hist["CLIENTE"].astype(str).str.contains(busqueda, case=False, na=False) |
@@ -265,38 +274,31 @@ with tab_historial:
                 
             st.dataframe(df_filtrado, use_container_width=True)
             
-            # --- SECCIÓN PARA BORRAR / ANULAR UNA VENTA ---
+            # --- ANULAR VENTA ---
             st.markdown("---")
-            st.markdown("#### 🗑️ Anular / Borrar una Venta Errónea")
-            st.caption("Si te equivocaste al registrar una venta, puedes seleccionarla aquí para eliminarla. El stock se devolverá automáticamente al inventario.")
-            
-            clave_borrar = st.text_input("🔑 Clave Administrador para Borrar Venta", type="password", key="key_del_venta")
+            st.markdown("#### 🗑️ Anular Venta Errónea")
+            clave_borrar = st.text_input("🔑 Clave Administrador para Anular Venta", type="password", key="key_del_venta")
             
             if clave_borrar == CLAVE_ADMIN:
                 if not df_v_hist.empty:
-                    # Crear opciones descriptivas para cada venta (Fila, Fecha, Cliente, Total)
                     opciones_ventas = [f"Fila {i} | Fecha: {row['FECHA']} | Cliente: {row['CLIENTE']} | Total: ${row['TOTAL']}" for i, row in df_v_hist.iterrows()]
                     venta_a_borrar_str = st.selectbox("Selecciona la venta a eliminar", opciones_ventas)
                     
-                    if st.button("❌ ELIMINAR VENTA SELECCIONADA Y DEVOLVER STOCK"):
-                        # Extraer el índice de la cadena seleccionada
+                    if st.button("❌ ELIMINAR VENTA Y DEVOLVER STOCK"):
                         idx_str = venta_a_borrar_str.split(" | ")[0].replace("Fila ", "")
                         idx_venta = int(idx_str)
                         
-                        # Datos de la venta a borrar para reponer stock
                         cat_venta = df_v_hist.loc[idx_venta, "CATEGORIA"]
                         cant_venta = int(df_v_hist.loc[idx_venta, "CANTIDAD"])
                         
-                        # Devolver stock al inventario
                         if cat_venta in df_inv["CATEGORIA"].values:
                             df_inv.loc[df_inv["CATEGORIA"] == cat_venta, "STOCK"] += cant_venta
                             df_inv.to_csv(FILE_INV, index=False)
                         
-                        # Eliminar la venta del registro
                         df_v_nuevo = df_v_hist.drop(idx_venta).reset_index(drop=True)
                         df_v_nuevo.to_csv(FILE_VENTAS, index=False)
                         
-                        st.success("¡Venta eliminada correctamente y stock devuelto al inventario!")
+                        st.success("¡Venta eliminada y stock devuelto!")
                         st.rerun()
             elif clave_borrar != "":
                 st.error("Clave incorrecta")
@@ -304,8 +306,8 @@ with tab_historial:
             st.markdown("---")
             csv_data = df_v_hist.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="📥 Descargar Reporte (Excel / CSV)",
+                label="📥 Descargar Reporte Completo (CSV)",
                 data=csv_data,
                 file_name=f"ventas_mesitas_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime='text/css' if False else 'text/csv'
+                mime='text/csv'
             )
