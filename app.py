@@ -184,7 +184,6 @@ st.markdown("""
     div[data-baseweb="tab-list"] { gap: 12px; background-color: #e2e8f0; padding: 10px; border-radius: 18px; }
     div[data-baseweb="tab"] { border-radius: 14px; font-weight: 700; font-size: 18px !important; color: #334155; padding: 12px 24px !important; }
     
-    /* Cajas de texto y selectores más grandes */
     input, select, textarea { font-size: 18px !important; }
     .stSelectbox label, .stTextInput label, .stNumberInput label, .stFileUploader label {
         font-size: 18px !important;
@@ -243,6 +242,12 @@ with tab_ops:
             cant = c1.number_input("Cantidad", min_value=1, value=1, step=1)
             pago = c2.selectbox("Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
             
+            # 🏷️ CAMPO DE DESCUENTO
+            descuento = st.number_input("Descuento ($)", min_value=0.0, value=0.0, step=1.0)
+            
+            if descuento > 10.0:
+                st.warning("No permitido no descuentes mucho")
+            
             cliente = st.text_input("Nombre del Cliente", value="Cliente General")
             
             cc1, cc2 = st.columns(2)
@@ -254,13 +259,16 @@ with tab_ops:
             
             foto_subida = st.file_uploader("📸 Subir Foto de la Cama o Producto (Opcional)", type=["jpg", "png", "jpeg"])
             
-            total = cant * precio_unit
+            subtotal = cant * precio_unit
+            total = max(0.0, subtotal - descuento)
             st.markdown(f"<h2 style='color:#1e293b; margin-top:20px;'>Total a Cobrar: ${total:,.2f}</h2>", unsafe_allow_html=True)
             
             submitted_venta = st.form_submit_button("💰 COBRAR Y GENERAR RECIBO DE VENTA")
             
             if submitted_venta:
-                if cant > stock_disp:
+                if descuento > 10.0:
+                    st.error("❌ No se puede procesar la venta porque el descuento supera el límite permitido de $10.")
+                elif cant > stock_disp:
                     st.error(f"❌ Stock insuficiente. Solo hay {stock_disp} unidades.")
                 else:
                     ruta_foto_guardada = "Sin foto"
@@ -287,11 +295,11 @@ with tab_ops:
                     }])
                     pd.concat([df_actual_v, nueva], ignore_index=True).to_csv(FILE_VENTAS, index=False)
                     
-                    cuerpo_mail = f"""Nueva Venta Registrada:\n- Cliente: {cliente}\n- Producto: {cant}x {categoria_sel}\n- Total: ${total:,.2f}\n- Método: {pago}\n- Dirección: {direccion}"""
+                    cuerpo_mail = f"""Nueva Venta Registrada:\n- Cliente: {cliente}\n- Producto: {cant}x {categoria_sel}\n- Descuento: ${descuento:,.2f}\n- Total: ${total:,.2f}\n- Método: {pago}\n- Dirección: {direccion}"""
                     enviar_correo_venta(correo, f"🧾 Recibo de Compra - Local Mesitas", cuerpo_mail, ruta_foto_guardada)
 
                     st.session_state["ultima_venta_ws"] = {
-                        "mensaje": f"🚨 *NUEVA VENTA REGISTRADA* 🛏️\n\n👤 *Cliente*: {cliente}\n📞 *Tel*: {telefono if telefono else 'N/A'}\n📦 *Producto*: {cant}x {categoria_sel}\n💰 *Total*: ${total:,.2f}\n💳 *Pago*: {pago}\n📍 *Dirección*: {direccion}\n📅 *Fecha*: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                        "mensaje": f"🚨 *NUEVA VENTA REGISTRADA* 🛏️\n\n👤 *Cliente*: {cliente}\n📞 *Tel*: {telefono if telefono else 'N/A'}\n📦 *Producto*: {cant}x {categoria_sel}\n🏷️ *Descuento*: ${descuento:,.2f}\n💰 *Total*: ${total:,.2f}\n💳 *Pago*: {pago}\n📍 *Dirección*: {direccion}\n📅 *Fecha*: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
                     }
                     st.success("¡Venta procesada con éxito!")
                     st.rerun()
