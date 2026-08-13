@@ -18,15 +18,12 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 try:
     df_inv = conn.read(worksheet="Inventario", ttl=0)
 except Exception:
-    try:
-        df_inv = conn.read(ttl=0)
-    except Exception:
-        df_inv = pd.DataFrame([
-            {"CATEGORIA": "Camas", "STOCK": 0},
-            {"CATEGORIA": "Colchones", "STOCK": 0},
-            {"CATEGORIA": "Armarios", "STOCK": 0},
-            {"CATEGORIA": "Pajaritas", "STOCK": 0}
-        ])
+    df_inv = pd.DataFrame([
+        {"CATEGORIA": "Camas", "STOCK": 0},
+        {"CATEGORIA": "Colchones", "STOCK": 0},
+        {"CATEGORIA": "Armarios", "STOCK": 0},
+        {"CATEGORIA": "Pajaritas", "STOCK": 0}
+    ])
 
 # Cargar Ventas
 try:
@@ -42,6 +39,13 @@ if "CATEGORIA" not in df_inv.columns or "STOCK" not in df_inv.columns:
         {"CATEGORIA": "Armarios", "STOCK": 0},
         {"CATEGORIA": "Pajaritas", "STOCK": 0}
     ])
+
+# Función para guardar datos sin errores
+def guardar_datos(worksheet_name, dataframe):
+    try:
+        conn.update(worksheet=worksheet_name, data=dataframe)
+    except Exception:
+        conn.update(data=dataframe)
 
 def mostrar_categoria(nombre_cat, icono):
     st.subheader(f"{icono} {nombre_cat}")
@@ -65,11 +69,7 @@ def mostrar_categoria(nombre_cat, icono):
                 if st.form_submit_button("➕ Sumar al Inventario"):
                     df_inv.loc[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper(), "STOCK"] += cant_sumar
                     
-                    # Guardar cambios usando conn.write() para evitar UnsupportedOperationError
-                    try:
-                        conn.write(worksheet="Inventario", data=df_inv)
-                    except Exception:
-                        conn.write(data=df_inv)
+                    guardar_datos("Inventario", df_inv)
                         
                     st.success(f"¡Se sumaron {cant_sumar} unidades a {nombre_cat}!")
                     st.rerun()
@@ -99,10 +99,7 @@ def mostrar_categoria(nombre_cat, icono):
                 else:
                     # 1. Descontar del inventario
                     df_inv.loc[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper(), "STOCK"] -= cant_vender
-                    try:
-                        conn.write(worksheet="Inventario", data=df_inv)
-                    except Exception:
-                        conn.write(data=df_inv)
+                    guardar_datos("Inventario", df_inv)
                     
                     # 2. Registrar la venta en la pestaña Ventas
                     nueva_venta = pd.DataFrame([{
@@ -115,11 +112,8 @@ def mostrar_categoria(nombre_cat, icono):
                         "CORREO": cliente_cor
                     }])
                     
-                    df_v_actualizado = pd.concat([df_ventas, nueva_venta], ignore_index=True)
-                    try:
-                        conn.write(worksheet="Ventas", data=df_v_actualizado)
-                    except Exception:
-                        conn.write(data=df_v_actualizado)
+                    df_v_actualizado = pd.concat([df_ventas, nueva_venta], ignore_ignore=True) if hasattr(pd, "concat") else df_ventas.append(nueva_venta)
+                    guardar_datos("Ventas", df_v_actualizado)
                     
                     st.success(f"¡Venta realizada! Se descontaron {cant_vender} unidades y se guardó la venta de {cliente_nom}.")
                     st.rerun()
