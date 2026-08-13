@@ -119,7 +119,6 @@ with tab_ops:
                 cliente_tel = st.text_input("Teléfono")
                 cliente_cor = st.text_input("Correo")
                 
-                # Cálculo directo de la multiplicación
                 total_calculado = float(cant_vender) * float(precio_unitario)
                 
                 st.markdown(f"""
@@ -157,29 +156,24 @@ with tab_ops:
                         
                         st.success(f"¡Venta realizada por ${total_calculado:,.2f}!")
                         
-                        # Guardar correctamente en la sesión con el total ya calculado
-                        st.session_state["ultimo_recibo"] = {
-                            "cliente": cliente_nom, "producto": categoria_sel, 
-                            "cantidad": cant_vender, "total": total_calculado, "pago": metodo_pago
-                        }
+                        # Guardar el comprobante con formato de texto limpio asegurando el total
+                        st.session_state["ultimo_recibo"] = f"""*LOCAL MESITAS - COMPROBANTE DE VENTA*
+--------------------------------
+📅 Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+👤 Cliente: {cliente_nom}
+📦 Producto: {categoria_sel}
+🔢 Cantidad: {cant_vender} ud.
+💳 Método de pago: {metodo_pago}
+💰 TOTAL PAGADO: ${total_calculado:,.2f}
+--------------------------------
+¡Gracias por su compra!"""
                         st.rerun()
 
     # --- RECIBO RÁPIDO PARA COMPARTIR ---
     with col_ticket:
         st.markdown("### 🧾 Comprobante / Recibo Reciente")
         if "ultimo_recibo" in st.session_state:
-            rec = st.session_state["ultimo_recibo"]
-            ticket_texto = f"""*LOCAL MESITAS - COMPROBANTE DE VENTA*
---------------------------------
-📅 Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-👤 Cliente: {rec['cliente']}
-📦 Producto: {rec['producto']}
-🔢 Cantidad: {rec['cantidad']} ud.
-💳 Método de pago: {rec['pago']}
-💰 *TOTAL PAGADO: ${float(rec['total']):,.2f}*
---------------------------------
-¡Gracias por su compra!"""
-            st.text_area("Copia este mensaje para WhatsApp:", value=ticket_texto, height=180)
+            st.text_area("Copia este mensaje para WhatsApp:", value=st.session_state["ultimo_recibo"], height=190)
         else:
             st.info("💡 Realiza una venta para generar el comprobante instantáneo y enviarlo por WhatsApp al cliente.")
 
@@ -246,7 +240,8 @@ with tab_inventario:
         st.info("Ingresa la clave `1234` para desbloquear la administración.")
 
 with tab_historial:
-    st.markdown("### 📜 Historial y Reportes Financieros")
+    st.markdown("### 📜 Historial, Reportes y Anulación de Ventas")
+    
     if os.path.exists(FILE_VENTAS):
         df_v_hist = pd.read_csv(FILE_VENTAS)
         if df_v_hist.empty:
@@ -270,10 +265,47 @@ with tab_historial:
                 
             st.dataframe(df_filtrado, use_container_width=True)
             
+            # --- SECCIÓN PARA BORRAR / ANULAR UNA VENTA ---
+            st.markdown("---")
+            st.markdown("#### 🗑️ Anular / Borrar una Venta Errónea")
+            st.caption("Si te equivocaste al registrar una venta, puedes seleccionarla aquí para eliminarla. El stock se devolverá automáticamente al inventario.")
+            
+            clave_borrar = st.text_input("🔑 Clave Administrador para Borrar Venta", type="password", key="key_del_venta")
+            
+            if clave_borrar == CLAVE_ADMIN:
+                if not df_v_hist.empty:
+                    # Crear opciones descriptivas para cada venta (Fila, Fecha, Cliente, Total)
+                    opciones_ventas = [f"Fila {i} | Fecha: {row['FECHA']} | Cliente: {row['CLIENTE']} | Total: ${row['TOTAL']}" for i, row in df_v_hist.iterrows()]
+                    venta_a_borrar_str = st.selectbox("Selecciona la venta a eliminar", opciones_ventas)
+                    
+                    if st.button("❌ ELIMINAR VENTA SELECCIONADA Y DEVOLVER STOCK"):
+                        # Extraer el índice de la cadena seleccionada
+                        idx_str = venta_a_borrar_str.split(" | ")[0].replace("Fila ", "")
+                        idx_venta = int(idx_str)
+                        
+                        # Datos de la venta a borrar para reponer stock
+                        cat_venta = df_v_hist.loc[idx_venta, "CATEGORIA"]
+                        cant_venta = int(df_v_hist.loc[idx_venta, "CANTIDAD"])
+                        
+                        # Devolver stock al inventario
+                        if cat_venta in df_inv["CATEGORIA"].values:
+                            df_inv.loc[df_inv["CATEGORIA"] == cat_venta, "STOCK"] += cant_venta
+                            df_inv.to_csv(FILE_INV, index=False)
+                        
+                        # Eliminar la venta del registro
+                        df_v_nuevo = df_v_hist.drop(idx_venta).reset_index(drop=True)
+                        df_v_nuevo.to_csv(FILE_VENTAS, index=False)
+                        
+                        st.success("¡Venta eliminada correctamente y stock devuelto al inventario!")
+                        st.rerun()
+            elif clave_borrar != "":
+                st.error("Clave incorrecta")
+                
+            st.markdown("---")
             csv_data = df_v_hist.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Descargar Reporte (Excel / CSV)",
                 data=csv_data,
                 file_name=f"ventas_mesitas_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime='text/csv'
+                mime='text/css' if False else 'text/csv'
             )
