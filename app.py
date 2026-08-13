@@ -1,56 +1,40 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
+import os
 
-# Configuración de la página
 st.set_page_config(page_title="CAMAS - Control de Inventario y Ventas", page_icon="🛏️", layout="wide")
 
-# Clave secreta para que SOLO TÚ puedas ingresar mercancía
 CLAVE_ADMIN = "1234"
 
-st.title("🛏️ Control de Unidades y Ventas - CAMAS")
+# Archivos locales de almacenamiento
+FILE_INV = "inventario.csv"
+FILE_VENTAS = "ventas.csv"
 
-# Conexión a Google Sheets
-conn = st.connection("gsheets", type=GSheetsConnection)
-
-# Cargar Inventario
-try:
-    df_inv = conn.read(worksheet="Inventario", ttl=0)
-except Exception:
+# Cargar o crear Inventario
+if os.path.exists(FILE_INV):
+    df_inv = pd.read_csv(FILE_INV)
+else:
     df_inv = pd.DataFrame([
         {"CATEGORIA": "Camas", "STOCK": 0},
         {"CATEGORIA": "Colchones", "STOCK": 0},
         {"CATEGORIA": "Armarios", "STOCK": 0},
         {"CATEGORIA": "Pajaritas", "STOCK": 0}
     ])
+    df_inv.to_csv(FILE_INV, index=False)
 
-# Cargar Ventas
-try:
-    df_ventas = conn.read(worksheet="Ventas", ttl=0)
-except Exception:
+# Cargar o crear Ventas
+if os.path.exists(FILE_VENTAS):
+    df_ventas = pd.read_csv(FILE_VENTAS)
+else:
     df_ventas = pd.DataFrame(columns=["FECHA", "CATEGORIA", "CANTIDAD", "CLIENTE", "CEDULA", "TELEFONO", "CORREO"])
+    df_ventas.to_csv(FILE_VENTAS, index=False)
 
-# Validar columnas del inventario
-if "CATEGORIA" not in df_inv.columns or "STOCK" not in df_inv.columns:
-    df_inv = pd.DataFrame([
-        {"CATEGORIA": "Camas", "STOCK": 0},
-        {"CATEGORIA": "Colchones", "STOCK": 0},
-        {"CATEGORIA": "Armarios", "STOCK": 0},
-        {"CATEGORIA": "Pajaritas", "STOCK": 0}
-    ])
-
-# Función para guardar datos sin errores
-def guardar_datos(worksheet_name, dataframe):
-    try:
-        conn.update(worksheet=worksheet_name, data=dataframe)
-    except Exception:
-        conn.update(data=dataframe)
+st.title("🛏️ Control de Unidades y Ventas - CAMAS")
 
 def mostrar_categoria(nombre_cat, icono):
     st.subheader(f"{icono} {nombre_cat}")
     
-    # Obtener stock actual
     fila = df_inv[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper()]
     stock_actual = int(fila["STOCK"].values[0]) if not fila.empty else 0
     
@@ -58,25 +42,25 @@ def mostrar_categoria(nombre_cat, icono):
     
     col_in, col_out = st.columns(2)
     
-    # --- SOLO TÚ (CON CLAVE) PUEDES INGRESAR MERCANCÍA ---
+    # --- ENTRADA SOLO CON CLAVE ---
     with col_in:
-        st.markdown("##### 📥 Llegó Mercancía (Acceso Administrador)")
+        st.markdown("##### 📥 Llegó Mercancía (Acceso Admin)")
         clave = st.text_input(f"Clave Admin ({nombre_cat})", type="password", key=f"pass_{nombre_cat}")
         
         if clave == CLAVE_ADMIN:
             with st.form(key=f"form_sumar_{nombre_cat}"):
                 cant_sumar = st.number_input("¿Cuántas llegaron?", min_value=1, step=1)
                 if st.form_submit_button("➕ Sumar al Inventario"):
-                    df_inv.loc[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper(), "STOCK"] += cant_sumar
-                    
-                    guardar_datos("Inventario", df_inv)
-                        
+                    idx = df_inv[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper()].index
+                    if not idx.empty:
+                        df_inv.loc[idx, "STOCK"] += cant_sumar
+                        df_inv.to_csv(FILE_INV, index=False)
                     st.success(f"¡Se sumaron {cant_sumar} unidades a {nombre_cat}!")
                     st.rerun()
         elif clave != "":
             st.error("Clave incorrecta")
 
-    # --- TUS EMPLEADAS REGISTRAN LA VENTA Y CLIENTE ---
+    # --- VENTAS Y CLIENTES ---
     with col_out:
         st.markdown("##### 🛒 Registrar Venta")
         with st.form(key=f"form_venta_{nombre_cat}"):
@@ -97,11 +81,13 @@ def mostrar_categoria(nombre_cat, icono):
                 elif cliente_nom.strip() == "":
                     st.warning("Debes ingresar el nombre del cliente.")
                 else:
-                    # 1. Descontar del inventario
-                    df_inv.loc[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper(), "STOCK"] -= cant_vender
-                    guardar_datos("Inventario", df_inv)
+                    # Descontar stock
+                    idx = df_inv[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper()].index
+                    if not idx.empty:
+                        df_inv.loc[idx, "STOCK"] -= cant_vender
+                        df_inv.to_csv(FILE_INV, index=False)
                     
-                    # 2. Registrar la venta en la pestaña Ventas
+                    # Guardar Venta
                     nueva_venta = pd.DataFrame([{
                         "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "CATEGORIA": nombre_cat,
@@ -112,13 +98,12 @@ def mostrar_categoria(nombre_cat, icono):
                         "CORREO": cliente_cor
                     }])
                     
-                    df_v_actualizado = pd.concat([df_ventas, nueva_venta], ignore_ignore=True) if hasattr(pd, "concat") else df_ventas.append(nueva_venta)
-                    guardar_datos("Ventas", df_v_actualizado)
+                    df_v_actualizado = pd.concat([df_ventas, nueva_venta], ignore_index=True)
+                    df_v_actualizado.to_csv(FILE_VENTAS, index=False)
                     
-                    st.success(f"¡Venta realizada! Se descontaron {cant_vender} unidades y se guardó la venta de {cliente_nom}.")
+                    st.success(f"¡Venta realizada! Se descontaron {cant_vender} unidades y se guardaron los datos de {cliente_nom}.")
                     st.rerun()
 
-# Pestañas principales
 tab_camas, tab_colchones, tab_armarios, tab_pajaritas, tab_historial = st.tabs([
     "🛏️ Camas", "💤 Colchones", "🚪 Armarios", "🎀 Pajaritas", "📜 Historial de Ventas"
 ])
@@ -137,7 +122,11 @@ with tab_pajaritas:
 
 with tab_historial:
     st.subheader("📜 Historial de Ventas Realizadas")
-    if df_ventas.empty:
-        st.info("Aún no hay ventas registradas.")
+    if os.path.exists(FILE_VENTAS):
+        df_v_hist = pd.read_csv(FILE_VENTAS)
+        if df_v_hist.empty:
+            st.info("Aún no hay ventas registradas.")
+        else:
+            st.dataframe(df_v_hist, use_container_width=True)
     else:
-        st.dataframe(df_ventas, use_container_width=True)
+        st.info("Aún no hay ventas registradas.")
