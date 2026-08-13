@@ -66,10 +66,10 @@ if not st.session_state["autenticado"]:
         <style>
         .stApp { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #f8fafc; }
         .login-box {
-            max-width: 420px;
+            max-width: 450px;
             margin: 100px auto;
-            padding: 40px;
-            background: rgba(30, 41, 59, 0.7);
+            padding: 50px;
+            background: rgba(30, 41, 59, 0.8);
             border-radius: 24px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
             backdrop-filter: blur(12px);
@@ -81,12 +81,12 @@ if not st.session_state["autenticado"]:
 
     st.markdown("""
         <div class="login-box">
-            <h1 style="color: #38bdf8; margin-bottom: 10px; font-weight: 800;">🔐 Local Mesitas</h1>
-            <p style="color: #94a3b8; font-size: 15px;">Ingrese su contraseña para acceder al sistema</p>
+            <h1 style="color: #38bdf8; margin-bottom: 15px; font-weight: 800; font-size: 36px;">🔐 Local Mesitas</h1>
+            <p style="color: #94a3b8; font-size: 18px;">Ingrese su contraseña para acceder al sistema</p>
         </div>
     """, unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 1.3, 1])
+    col1, col2, col3 = st.columns([1, 1.4, 1])
     with col2:
         passw = st.text_input("Contraseña", type="password", key="input_pass_app")
         if st.button("🚀 INGRESAR AL SISTEMA", use_container_width=True):
@@ -106,7 +106,8 @@ else:
     df_inv = pd.DataFrame([
         {"CATEGORIA": "Camas", "STOCK": 0, "PRECIO": 0.0},
         {"CATEGORIA": "Colchones", "STOCK": 0, "PRECIO": 0.0},
-        {"CATEGORIA": "Armarios", "STOCK": 0, "PRECIO": 0.0},
+        {"CATEGORIA": "Armarios Grandes", "STOCK": 0, "PRECIO": 0.0},
+        {"CATEGORIA": "Armarios Pequeños", "STOCK": 0, "PRECIO": 0.0},
         {"CATEGORIA": "Pajaritas", "STOCK": 0, "PRECIO": 0.0}
     ])
     df_inv.to_csv(FILE_INV, index=False)
@@ -133,13 +134,14 @@ else:
     ])
     df_ventas.to_csv(FILE_VENTAS, index=False)
 
-# --- ESTILOS VISUALES ---
+# --- ESTILOS VISUALES AMPLIADOS Y MÁS GRANDES ---
 st.markdown("""
     <style>
-    .stApp { background-color: #f8fafc; font-family: 'Inter', 'Segoe UI', Roboto, sans-serif; }
+    .stApp { background-color: #f8fafc; font-family: 'Inter', 'Segoe UI', Roboto, sans-serif; font-size: 18px; }
+    
     .header-box {
         background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        padding: 35px;
+        padding: 45px;
         border-radius: 24px;
         color: white;
         text-align: center;
@@ -147,34 +149,48 @@ st.markdown("""
         box-shadow: 0 15px 30px rgba(15, 23, 42, 0.15);
         border: 1px solid rgba(255, 255, 255, 0.08);
     }
+    
     .card-resibo {
         background: white;
-        padding: 30px;
+        padding: 35px;
         border-radius: 20px;
-        border-left: 6px solid #3b82f6;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        border-left: 8px solid #3b82f6;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.08);
         margin-bottom: 20px;
         border-top: 1px solid #f1f5f9;
         border-right: 1px solid #f1f5f9;
         border-bottom: 1px solid #f1f5f9;
     }
+
+    /* 🟢 BOTONES MÁS GRANDES Y CÓMODOS */
     .stButton>button {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
         color: white;
-        border-radius: 14px;
-        font-weight: 600;
-        font-size: 16px;
-        height: 52px;
+        border-radius: 16px;
+        font-weight: 700;
+        font-size: 20px !important;
+        height: 64px !important;
+        width: 100%;
         border: none;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
         transition: all 0.2s ease;
     }
     .stButton>button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
+        box-shadow: 0 8px 22px rgba(37, 99, 235, 0.5);
     }
-    div[data-baseweb="tab-list"] { gap: 10px; background-color: #e2e8f0; padding: 6px; border-radius: 16px; }
-    div[data-baseweb="tab"] { border-radius: 12px; font-weight: 600; color: #475569; }
+
+    /* 🔤 TAMAÑO DE LETRA EN PESTAÑAS Y CAMPOS */
+    div[data-baseweb="tab-list"] { gap: 12px; background-color: #e2e8f0; padding: 10px; border-radius: 18px; }
+    div[data-baseweb="tab"] { border-radius: 14px; font-weight: 700; font-size: 18px !important; color: #334155; padding: 12px 24px !important; }
+    
+    /* Cajas de texto y selectores más grandes */
+    input, select, textarea { font-size: 18px !important; }
+    .stSelectbox label, .stTextInput label, .stNumberInput label, .stFileUploader label {
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        color: #1e293b !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -186,8 +202,8 @@ with col_logout:
 
 st.markdown("""
     <div class="header-box">
-        <h1 style="color:white; margin:0; font-size: 32px; font-weight: 800; letter-spacing: -0.5px;">🏪 LOCAL MESITAS</h1>
-        <p style="margin:10px 0 0 0; font-size: 17px; color: #94a3b8;">Sistema de POS, Apartados y Notificaciones</p>
+        <h1 style="color:white; margin:0; font-size: 42px; font-weight: 800; letter-spacing: -0.5px;">🏪 LOCAL MESITAS</h1>
+        <p style="margin:12px 0 0 0; font-size: 20px; color: #94a3b8;">Sistema de POS, Apartados y Notificaciones</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -211,7 +227,7 @@ with tab_ops:
         st.info("No hay productos en el inventario.")
     else:
         cols = st.columns(len(df_inv))
-        iconos = {"Camas": "🛏️", "Colchones": "💤", "Armarios": "🚪", "Pajaritas": "🎀"}
+        iconos = {"Camas": "🛏️", "Colchones": "💤", "Armarios Grandes": "🚪", "Armarios Pequeños": "🚪", "Pajaritas": "🎀"}
         for idx, row in df_inv.iterrows():
             cat = row["CATEGORIA"]
             cols[idx].metric(label=f"{iconos.get(cat, '📦')} {cat}", value=f"{int(row['STOCK'])} ud", delta=f"${row['PRECIO']:,.2f}")
@@ -239,7 +255,7 @@ with tab_ops:
             foto_subida = st.file_uploader("📸 Subir Foto de la Cama o Producto (Opcional)", type=["jpg", "png", "jpeg"])
             
             total = cant * precio_unit
-            st.markdown(f"### Total a Cobrar: ${total:,.2f}")
+            st.markdown(f"<h2 style='color:#1e293b; margin-top:20px;'>Total a Cobrar: ${total:,.2f}</h2>", unsafe_allow_html=True)
             
             submitted_venta = st.form_submit_button("💰 COBRAR Y GENERAR RECIBO DE VENTA")
             
@@ -271,7 +287,6 @@ with tab_ops:
                     }])
                     pd.concat([df_actual_v, nueva], ignore_index=True).to_csv(FILE_VENTAS, index=False)
                     
-                    # Enviar correo si tiene
                     cuerpo_mail = f"""Nueva Venta Registrada:\n- Cliente: {cliente}\n- Producto: {cant}x {categoria_sel}\n- Total: ${total:,.2f}\n- Método: {pago}\n- Dirección: {direccion}"""
                     enviar_correo_venta(correo, f"🧾 Recibo de Compra - Local Mesitas", cuerpo_mail, ruta_foto_guardada)
 
@@ -281,19 +296,18 @@ with tab_ops:
                     st.success("¡Venta procesada con éxito!")
                     st.rerun()
 
-    # Mostrar botones de WhatsApp para ambos números personales
     if "ultima_venta_ws" in st.session_state:
         uv = st.session_state["ultima_venta_ws"]
         link_ws_1 = generar_link_whatsapp(NUMERO_1, uv["mensaje"])
         link_ws_2 = generar_link_whatsapp(NUMERO_2, uv["mensaje"])
         
         st.markdown(f"""
-            <div style="background: #f0fdf4; border: 2px solid #22c55e; padding: 20px; border-radius: 16px; text-align: center; margin-top: 20px;">
-                <h3 style="color: #15803d; margin-top:0;">📱 Notificaciones de WhatsApp Listas</h3>
-                <p>Haz clic en los botones para enviar el reporte a tus dos números personales:</p>
-                <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-top: 15px;">
-                    <a href="{link_ws_1}" target="_blank" style="background-color: #25d366; color: white; padding: 12px 20px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px; display: inline-block;">💬 Enviar a Número 1 (0990847819)</a>
-                    <a href="{link_ws_2}" target="_blank" style="background-color: #128c7e; color: white; padding: 12px 20px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px; display: inline-block;">💬 Enviar a Número 2 (0983576800)</a>
+            <div style="background: #f0fdf4; border: 3px solid #22c55e; padding: 25px; border-radius: 20px; text-align: center; margin-top: 25px;">
+                <h2 style="color: #15803d; margin-top:0; font-size: 26px;">📱 Notificaciones de WhatsApp Listas</h2>
+                <p style="font-size: 18px;">Haz clic en los botones para enviar el reporte a tus dos números personales:</p>
+                <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
+                    <a href="{link_ws_1}" target="_blank" style="background-color: #25d366; color: white; padding: 16px 28px; border-radius: 14px; text-decoration: none; font-weight: bold; font-size: 18px; display: inline-block; box-shadow: 0 4px 12px rgba(37,211,102,0.4);">💬 Enviar a Número 1 (0990847819)</a>
+                    <a href="{link_ws_2}" target="_blank" style="background-color: #128c7e; color: white; padding: 16px 28px; border-radius: 14px; text-decoration: none; font-weight: bold; font-size: 18px; display: inline-block; box-shadow: 0 4px 12px rgba(18,140,126,0.4);">💬 Enviar a Número 2 (0983576800)</a>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -367,7 +381,6 @@ with tab_apartados:
                             
                         pd.concat([df_actual_v, nuevo_ap], ignore_index=True).to_csv(FILE_VENTAS, index=False)
                         
-                        # Enviar correo si tiene
                         cuerpo_mail = f"Nuevo Apartado:\nCliente: {ap_cliente}\nProducto: {ap_cant}x {ap_cat}\nTotal: ${tot_p:,.2f}\nAbono: ${ap_abono:,.2f}\nSaldo: ${saldo_p:,.2f}"
                         enviar_correo_venta(ap_corr, f"🧾 Recibo de Apartado - Local Mesitas", cuerpo_mail, ruta_foto_ap)
 
@@ -410,15 +423,15 @@ with tab_apartados:
                     st.markdown(f"""
                         <div class="card-resibo">
                             <h2 style="color: #2563eb; margin-top: 0; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; font-weight: 700;">🧾 RECIBO DE APARTADO</h2>
-                            <p style="font-size: 15px; margin: 6px 0; color: #334155;"><b>📅 Fecha:</b> {r_data['FECHA']}</p>
-                            <p style="font-size: 15px; margin: 6px 0; color: #334155;"><b>👤 Cliente:</b> {r_data['CLIENTE']}</p>
-                            <p style="font-size: 15px; margin: 6px 0; color: #334155;"><b>📞 Teléfono:</b> {r_data['TELEFONO']} | <b>🆔 Cédula:</b> {r_data['CEDULA']}</p>
-                            <p style="font-size: 15px; margin: 6px 0; color: #334155;"><b>📍 Dirección:</b> {r_data['DIRECCION']}</p>
-                            <hr style="border: 0; border-top: 1px dashed #cbd5e1; margin: 12px 0;">
-                            <p style="font-size: 15px; margin: 6px 0; color: #334155;"><b>📦 Producto:</b> {r_data['CANTIDAD']}x {r_data['CATEGORIA']}</p>
-                            <p style="font-size: 16px; margin: 6px 0; color: #334155;"><b>💰 Valor Total:</b> ${r_data['TOTAL']:,.2f}</p>
-                            <p style="font-size: 16px; margin: 6px 0; color: #16a34a;"><b>✅ Abonado:</b> ${r_data['ABONADO']:,.2f}</p>
-                            <p style="font-size: 18px; margin: 10px 0; color: #dc2626;"><b>🔴 SALDO: ${r_data['SALDO_PENDIENTE']:,.2f}</b></p>
+                            <p style="font-size: 17px; margin: 8px 0; color: #334155;"><b>📅 Fecha:</b> {r_data['FECHA']}</p>
+                            <p style="font-size: 17px; margin: 8px 0; color: #334155;"><b>👤 Cliente:</b> {r_data['CLIENTE']}</p>
+                            <p style="font-size: 17px; margin: 8px 0; color: #334155;"><b>📞 Teléfono:</b> {r_data['TELEFONO']} | <b>🆔 Cédula:</b> {r_data['CEDULA']}</p>
+                            <p style="font-size: 17px; margin: 8px 0; color: #334155;"><b>📍 Dirección:</b> {r_data['DIRECCION']}</p>
+                            <hr style="border: 0; border-top: 1px dashed #cbd5e1; margin: 15px 0;">
+                            <p style="font-size: 17px; margin: 8px 0; color: #334155;"><b>📦 Producto:</b> {r_data['CANTIDAD']}x {r_data['CATEGORIA']}</p>
+                            <p style="font-size: 18px; margin: 8px 0; color: #334155;"><b>💰 Valor Total:</b> ${r_data['TOTAL']:,.2f}</p>
+                            <p style="font-size: 18px; margin: 8px 0; color: #16a34a;"><b>✅ Abonado:</b> ${r_data['ABONADO']:,.2f}</p>
+                            <p style="font-size: 20px; margin: 12px 0; color: #dc2626;"><b>🔴 SALDO: ${r_data['SALDO_PENDIENTE']:,.2f}</b></p>
                         </div>
                     """, unsafe_allow_html=True)
                 
@@ -451,10 +464,10 @@ with tab_apartados:
                                 df_inv.to_csv(FILE_INV, index=False)
                                 
                             st.session_state["msg_exito"] = f"""
-                                <div style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 30px; border-radius: 16px; text-align: center; color: white; margin: 15px 0;">
-                                    <h1 style="margin:0; font-size: 28px;">🎉 ¡DEUDA SALDADA!</h1>
-                                    <h3 style="margin:10px 0;">EL CLIENTE <b>{r_data['CLIENTE'].upper()}</b> TERMINÓ DE PAGAR.</h3>
-                                    <p style="font-size: 20px; margin:0;">📦 <b>ENTREGUE EL PRODUCTO:</b> {cant_entregar}x {c_prod}</p>
+                                <div style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 35px; border-radius: 20px; text-align: center; color: white; margin: 15px 0;">
+                                    <h1 style="margin:0; font-size: 30px;">🎉 ¡DEUDA SALDADA!</h1>
+                                    <h3 style="margin:12px 0; font-size: 22px;">EL CLIENTE <b>{r_data['CLIENTE'].upper()}</b> TERMINÓ DE PAGAR.</h3>
+                                    <p style="font-size: 22px; margin:0;">📦 <b>ENTREGUE EL PRODUCTO:</b> {cant_entregar}x {c_prod}</p>
                                 </div>
                             """
                         else:
@@ -462,7 +475,6 @@ with tab_apartados:
                             
                         df_v.to_csv(FILE_VENTAS, index=False)
                         
-                        # Enviar correo si tiene
                         cuerpo_mail = f"Abono registrado para {r_data['CLIENTE']}\nAbono: ${cant_abonar:,.2f}\nSaldo Pendiente: ${max(0.0, nuevo_saldo):,.2f}"
                         enviar_correo_venta(r_data['CORREO'], f"🧾 Comprobante de Abono - Local Mesitas", cuerpo_mail, r_data['FOTO'])
 
@@ -523,7 +535,7 @@ with tab_historial:
                 idx_h = int(reg_foto_sel.split(" | ")[0].replace("Fila ", ""))
                 path_f = str(df_h.loc[idx_h].get("FOTO", "Sin foto"))
                 if path_f != "Sin foto" and os.path.exists(path_f):
-                    st.image(path_f, width=300, caption=f"Foto de {df_h.loc[idx_h]['CATEGORIA']}")
+                    st.image(path_f, width=350, caption=f"Foto de {df_h.loc[idx_h]['CATEGORIA']}")
                 else:
                     st.info("Este registro no tiene foto guardada.")
 
