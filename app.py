@@ -19,31 +19,32 @@ if "autenticado" not in st.session_state:
 if not st.session_state["autenticado"]:
     st.markdown("""
         <style>
-        .stApp { background-color: #0f2027; color: white; }
+        .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #27293d 100%); color: white; }
         .login-box {
-            max-width: 400px;
+            max-width: 450px;
             margin: 100px auto;
-            padding: 30px;
+            padding: 40px;
             background: rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-            backdrop-filter: blur(4px);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
             text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         </style>
     """, unsafe_allow_html=True)
 
     st.markdown("""
         <div class="login-box">
-            <h2>🔐 Acceso Restringido</h2>
-            <p style="color: #bbb;">Local Mesitas - Control Interno</p>
+            <h1 style="color: #ffaa00; margin-bottom: 10px;">🔐 Local Mesitas</h1>
+            <p style="color: #bbb; font-size: 16px;">Ingrese su contraseña para acceder al sistema</p>
         </div>
     """, unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 1.2, 1])
+    col1, col2, col3 = st.columns([1, 1.3, 1])
     with col2:
-        passw = st.text_input("Ingresa la clave de acceso", type="password", key="input_pass_app")
-        if st.button("🚀 INGRESAR AL SISTEMA"):
+        passw = st.text_input("Contraseña", type="password", key="input_pass_app")
+        if st.button("🚀 INGRESAR AL SISTEMA", use_container_width=True):
             if passw == CLAVE_ACCESO:
                 st.session_state["autenticado"] = True
                 st.rerun()
@@ -83,36 +84,46 @@ else:
     ])
     df_ventas.to_csv(FILE_VENTAS, index=False)
 
-# --- ESTILOS VISUALES PREMIUM ---
+# --- ESTILOS VISUALES GRANDES Y LLAMATIVOS ---
 st.markdown("""
     <style>
-    .stApp { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .stApp { background-color: #f7f9fc; font-family: 'Segoe UI', Roboto, sans-serif; }
     
     .header-box {
-        background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
-        padding: 25px;
-        border-radius: 16px;
+        background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+        padding: 30px;
+        border-radius: 20px;
         color: white;
         text-align: center;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+        box-shadow: 0 10px 25px rgba(255, 65, 108, 0.3);
     }
     
+    .card-resibo {
+        background: white;
+        padding: 25px;
+        border-radius: 16px;
+        border-left: 6px solid #ff416c;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+        margin-bottom: 20px;
+    }
+    
+    /* Botones grandes y llamativos */
     .stButton>button {
-        background: linear-gradient(135deg, #1f4068 0%, #162447 100%);
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
         color: white;
-        border-radius: 10px;
-        font-weight: 600;
-        width: 100%;
-        height: 48px;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 16px;
+        height: 55px;
         border: none;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
         transition: 0.3s;
     }
     
     .stButton>button:hover {
-        opacity: 0.9;
-        transform: translateY(-1px);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(17, 153, 142, 0.6);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -125,8 +136,8 @@ with col_logout:
 
 st.markdown("""
     <div class="header-box">
-        <h1 style="color:white; margin:0; font-weight: 700;">🏪 Local Mesitas</h1>
-        <p style="margin:8px 0 0 0; font-size: 16px; opacity: 0.85;">Sistema Rápido POS, Ventas y Apartados</p>
+        <h1 style="color:white; margin:0; font-size: 32px; font-weight: 800;">🏪 LOCAL MESITAS</h1>
+        <p style="margin:10px 0 0 0; font-size: 18px; opacity: 0.9;">Sistema de Caja, Ventas y Apartados con Recibos Claros</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -174,12 +185,12 @@ with tab_ops:
             telefono = cc2.text_input("Teléfono", value="")
             
             correo = st.text_input("Correo electrónico", value="")
-            direccion = st.text_input("Dirección", value="")
+            direccion = st.text_input("Dirección de Entrega", value="")
             
             total = cant * precio_unit
             st.markdown(f"### Total a Cobrar: ${total:,.2f}")
             
-            if st.form_submit_button("💰 COBRAR Y ENTREGAR INMEDIATAMENTE"):
+            if st.form_submit_button("💰 COBRAR Y GENERAR RECIBO DE VENTA"):
                 if cant > stock_disp:
                     st.error(f"❌ Stock insuficiente. Solo hay {stock_disp} unidades.")
                 else:
@@ -198,14 +209,14 @@ with tab_ops:
                         "TELEFONO": telefono, "CORREO": correo, "DIRECCION": direccion, "ESTADO": "Pagado y Entregado"
                     }])
                     pd.concat([df_actual_v, nueva], ignore_index=True).to_csv(FILE_VENTAS, index=False)
-                    st.success("¡Venta procesada y stock descontado con éxito!")
+                    st.success("¡Venta procesada con éxito!")
                     st.rerun()
 
-# ================= TAB 2: APARTADOS Y ABONOS (CON DATOS COMPLETOS) =================
+# ================= TAB 2: APARTADOS Y ABONOS (GRANDE Y CON RECIBO VISIBLE) =================
 with tab_apartados:
     st.markdown("### 📦 Gestión de Apartados y Clientes")
     
-    with st.expander("➕ CREAR NUEVO APARTADO (Hacer clic para abrir)", expanded=True):
+    with st.expander("➕ CREAR NUEVO APARTADO (Hacer clic para abrir formulario)", expanded=True):
         if not df_inv.empty:
             with st.form("form_nuevo_ap"):
                 ap_cat = st.selectbox("Producto a Apartar", df_inv["CATEGORIA"].tolist())
@@ -222,15 +233,15 @@ with tab_apartados:
                 ap_tel = c_inf2.text_input("Teléfono de contacto")
                 
                 ap_corr = st.text_input("Correo electrónico")
-                ap_dir = st.text_input("Dirección")
+                ap_dir = st.text_input("Dirección exacta")
                 
                 precio_p = float(p_info["PRECIO"])
                 tot_p = ap_cant * precio_p
                 saldo_p = tot_p - ap_abono
                 
-                st.info(f"Valor Total: ${tot_p:,.2f} | Abonando hoy: ${ap_abono:,.2f} | **Falta pagar: ${saldo_p:,.2f}**")
+                st.info(f"💵 Valor Total: ${tot_p:,.2f} | 📥 Abono Hoy: ${ap_abono:,.2f} | 🔴 **Falta por pagar: ${saldo_p:,.2f}**")
                 
-                if st.form_submit_button("💾 GUARDAR APARTADO EN BODEGA"):
+                if st.form_submit_button("💾 GUARDAR APARTADO Y GENERAR RECIBO"):
                     if ap_cliente.strip() == "":
                         st.warning("Por favor ingresa el nombre del cliente.")
                     else:
@@ -250,15 +261,15 @@ with tab_apartados:
                         if saldo_p <= 0:
                             df_inv.loc[df_inv["CATEGORIA"] == ap_cat, "STOCK"] -= ap_cant
                             df_inv.to_csv(FILE_INV, index=False)
-                            st.success("¡El cliente pagó el total de inmediato, producto entregado!")
+                            st.success("¡El cliente pagó el total de inmediato!")
                         else:
-                            st.success(f"¡Apartado guardado para {ap_cliente}! Quedó guardado en bodega.")
+                            st.success(f"¡Apartado guardado correctamente para {ap_cliente}!")
                             
                         pd.concat([df_actual_v, nuevo_ap], ignore_index=True).to_csv(FILE_VENTAS, index=False)
                         st.rerun()
 
     st.markdown("---")
-    st.markdown("### 📋 Listado de Apartados Activos y Abonos")
+    st.markdown("### 📋 Apartados Activos y Consulta de Recibos")
     
     df_v = pd.read_csv(FILE_VENTAS) if os.path.exists(FILE_VENTAS) else pd.DataFrame()
     if not df_v.empty and "ESTADO" in df_v.columns:
@@ -269,56 +280,70 @@ with tab_apartados:
         
         if "msg_exito" in st.session_state:
             st.markdown(st.session_state["msg_exito"], unsafe_allow_html=True)
-            if st.button("✖️ Cerrar aviso"):
+            if st.button("✖️ Cerrar aviso de pago completo"):
                 del st.session_state["msg_exito"]
                 st.rerun()
 
         if pendientes.empty:
             st.success("✨ ¡No hay apartados pendientes en este momento!")
         else:
-            # Mostramos las columnas clave incluyendo teléfono y dirección
-            cols_mostrar = [c for c in ["CLIENTE", "TELEFONO", "DIRECCION", "CATEGORIA", "CANTIDAD", "TOTAL", "ABONADO", "SALDO_PENDIENTE"] if c in pendientes.columns]
-            st.dataframe(pendientes[cols_mostrar], use_container_width=True)
+            # Seleccionador de recibo visual grande
+            lista_recibos = [f"Fila {i} ➔ Cliente: {r['CLIENTE']} | Producto: {r['CATEGORIA']} | Debe: ${r['SALDO_PENDIENTE']:,.2f}" for i, r in pendientes.iterrows()]
+            recibo_sel = st.selectbox("🔍 Selecciona un apartado para ver su Recibo Detallado y abonar:", lista_recibos)
             
-            st.markdown("#### 💸 Registrar Abono a un Cliente")
-            ops = [f"Fila {i} | Cliente: {r['CLIENTE']} | Producto: {r['CATEGORIA']} | Debe: ${r['SALDO_PENDIENTE']}" for i, r in pendientes.iterrows()]
-            elegido = st.selectbox("Selecciona al cliente que vino a abonar", ops)
-            
-            with st.form("form_dar_abono"):
-                i_idx = int(elegido.split(" | ")[0].replace("Fila ", ""))
-                c_nom = df_v.loc[i_idx, "CLIENTE"]
-                c_prod = df_v.loc[i_idx, "CATEGORIA"]
-                c_debe = float(df_v.loc[i_idx, "SALDO_PENDIENTE"])
+            if recibo_sel:
+                idx_sel = int(recibo_sel.split(" ➔ ")[0].replace("Fila ", ""))
+                r_data = df_v.loc[idx_sel]
                 
-                cant_abonar = st.number_input(f"¿Cuánto dinero trae {c_nom} hoy? ($)", min_value=0.0, max_value=c_debe, value=c_debe, step=5.0)
+                # --- RECIBO VISUAL GRANDE Y LLAMATIVO ---
+                st.markdown(f"""
+                    <div class="card-resibo">
+                        <h2 style="color: #ff416c; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px;">🧾 RECIBO DE APARTADO - LOCAL MESITAS</h2>
+                        <p style="font-size: 16px; margin: 5px 0;"><b>📅 Fecha de Registro:</b> {r_data['FECHA']}</p>
+                        <p style="font-size: 16px; margin: 5px 0;"><b>👤 Cliente:</b> {r_data['CLIENTE']}</p>
+                        <p style="font-size: 16px; margin: 5px 0;"><b>📞 Teléfono:</b> {r_data['TELEFONO']} | <b>🆔 Cédula:</b> {r_data['CEDULA']}</p>
+                        <p style="font-size: 16px; margin: 5px 0;"><b>📍 Dirección:</b> {r_data['DIRECCION']}</p>
+                        <hr style="border: 0; border-top: 1px dashed #ccc; margin: 15px 0;">
+                        <p style="font-size: 16px; margin: 5px 0;"><b>📦 Producto:</b> {r_data['CANTIDAD']}x {r_data['CATEGORIA']}</p>
+                        <p style="font-size: 18px; margin: 5px 0; color: #333;"><b>💰 Valor Total:</b> ${r_data['TOTAL']:,.2f}</p>
+                        <p style="font-size: 18px; margin: 5px 0; color: #11998e;"><b>✅ Total Abonado:</b> ${r_data['ABONADO']:,.2f}</p>
+                        <p style="font-size: 20px; margin: 10px 0; color: #ff4b2b;"><b>🔴 SALDO PENDIENTE: ${r_data['SALDO_PENDIENTE']:,.2f}</b></p>
+                    </div>
+                """, unsafe_allow_html=True)
                 
-                if st.form_submit_button("📥 REGISTRAR ABONO"):
-                    nuevo_abonado = float(df_v.loc[i_idx, "ABONADO"]) + cant_abonar
-                    nuevo_saldo = float(df_v.loc[i_idx, "SALDO_PENDIENTE"]) - cant_abonar
+                # Formulario para dar abono directo al recibo seleccionado
+                with st.form(f"form_abono_{idx_sel}"):
+                    st.markdown("#### 💸 Registrar nuevo abono a este recibo")
+                    cant_abonar = st.number_input(f"¿Cuánto dinero trae {r_data['CLIENTE']} hoy? ($)", min_value=0.0, max_value=float(r_data['SALDO_PENDIENTE']), value=float(r_data['SALDO_PENDIENTE']), step=5.0)
                     
-                    df_v.loc[i_idx, "ABONADO"] = nuevo_abonado
-                    df_v.loc[i_idx, "SALDO_PENDIENTE"] = max(0.0, nuevo_saldo)
-                    
-                    if nuevo_saldo <= 0:
-                        df_v.loc[i_idx, "ESTADO"] = "Pagado y Entregado"
-                        cant_entregar = int(df_v.loc[i_idx, "CANTIDAD"])
+                    if st.form_submit_button("📥 REGISTRAR ABONO AL RECIBO"):
+                        nuevo_abonado = float(r_data["ABONADO"]) + cant_abonar
+                        nuevo_saldo = float(r_data["SALDO_PENDIENTE"]) - cant_abonar
                         
-                        if c_prod in df_inv["CATEGORIA"].values:
-                            df_inv.loc[df_inv["CATEGORIA"] == c_prod, "STOCK"] -= cant_entregar
-                            df_inv.to_csv(FILE_INV, index=False)
+                        df_v.loc[idx_sel, "ABONADO"] = nuevo_abonado
+                        df_v.loc[idx_sel, "SALDO_PENDIENTE"] = max(0.0, nuevo_saldo)
+                        
+                        if nuevo_saldo <= 0:
+                            df_v.loc[idx_sel, "ESTADO"] = "Pagado y Entregado"
+                            cant_entregar = int(r_data["CANTIDAD"])
+                            c_prod = r_data["CATEGORIA"]
                             
-                        st.session_state["msg_exito"] = f"""
-                            <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 25px; border-radius: 14px; text-align: center; color: white; margin: 15px 0;">
-                                <h1 style="margin:0; font-size: 26px;">🎉 ¡FELICIDADES!</h1>
-                                <h3 style="margin:10px 0;">EL CLIENTE <b>{c_nom.upper()}</b> ACABÓ SU PAGO.</h3>
-                                <p style="font-size: 18px; margin:0;">📦 <b>ENTREGUE EL PRODUCTO:</b> {cant_entregar}x {c_prod}</p>
-                            </div>
-                        """
-                    else:
-                        st.success(f"¡Abono registrado con éxito! Saldo restante: ${nuevo_saldo:,.2f}")
-                        
-                    df_v.to_csv(FILE_VENTAS, index=False)
-                    st.rerun()
+                            if c_prod in df_inv["CATEGORIA"].values:
+                                df_inv.loc[df_inv["CATEGORIA"] == c_prod, "STOCK"] -= cant_entregar
+                                df_inv.to_csv(FILE_INV, index=False)
+                                
+                            st.session_state["msg_exito"] = f"""
+                                <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; border-radius: 16px; text-align: center; color: white; margin: 15px 0; box-shadow: 0 10px 25px rgba(0,0,0,0.15);">
+                                    <h1 style="margin:0; font-size: 28px;">🎉 ¡DEUDA SALDADA!</h1>
+                                    <h3 style="margin:10px 0;">EL CLIENTE <b>{r_data['CLIENTE'].upper()}</b> TERMINÓ DE PAGAR.</h3>
+                                    <p style="font-size: 20px; margin:0;">📦 <b>ENTREGUE EL PRODUCTO:</b> {cant_entregar}x {c_prod}</p>
+                                </div>
+                            """
+                        else:
+                            st.success(f"¡Abono registrado con éxito! Nuevo saldo pendiente: ${nuevo_saldo:,.2f}")
+                            
+                        df_v.to_csv(FILE_VENTAS, index=False)
+                        st.rerun()
 
 # ================= TAB 3: INVENTARIO =================
 with tab_inventario:
