@@ -11,7 +11,7 @@ CLAVE_ADMIN = "1234"
 FILE_INV = "inventario.csv"
 FILE_VENTAS = "ventas.csv"
 
-# Cargar o crear Inventario con categorías flexibles
+# Cargar o crear Inventario
 if os.path.exists(FILE_INV):
     df_inv = pd.read_csv(FILE_INV)
     if "PRECIO" not in df_inv.columns:
@@ -64,7 +64,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- ALERTA INTELIGENTE DE STOCK BAJO (MEJORA 3) ---
+# --- ALERTA INTELIGENTE DE STOCK BAJO ---
 stock_critico = df_inv[df_inv["STOCK"] <= 2]
 if not stock_critico.empty:
     productos_bajos = ", ".join([f"**{row['CATEGORIA']}** ({row['STOCK']} ud.)" for _, row in stock_critico.iterrows()])
@@ -119,7 +119,8 @@ with tab_ops:
                 cliente_tel = st.text_input("Teléfono")
                 cliente_cor = st.text_input("Correo")
                 
-                total_calculado = cant_vender * precio_unitario
+                # Cálculo directo de la multiplicación
+                total_calculado = float(cant_vender) * float(precio_unitario)
                 
                 st.markdown(f"""
                     <div style="background-color: #eef2f5; padding: 12px; border-radius: 8px; text-align: center; margin: 10px 0;">
@@ -155,13 +156,15 @@ with tab_ops:
                         df_v_act.to_csv(FILE_VENTAS, index=False)
                         
                         st.success(f"¡Venta realizada por ${total_calculado:,.2f}!")
+                        
+                        # Guardar correctamente en la sesión con el total ya calculado
                         st.session_state["ultimo_recibo"] = {
                             "cliente": cliente_nom, "producto": categoria_sel, 
                             "cantidad": cant_vender, "total": total_calculado, "pago": metodo_pago
                         }
                         st.rerun()
 
-    # --- RECIBO RÁPIDO PARA COMPARTIR (MEJORA 6) ---
+    # --- RECIBO RÁPIDO PARA COMPARTIR ---
     with col_ticket:
         st.markdown("### 🧾 Comprobante / Recibo Reciente")
         if "ultimo_recibo" in st.session_state:
@@ -173,7 +176,7 @@ with tab_ops:
 📦 Producto: {rec['producto']}
 🔢 Cantidad: {rec['cantidad']} ud.
 💳 Método de pago: {rec['pago']}
-💰 *TOTAL PAGADO: ${rec['total']:,.2f}*
+💰 *TOTAL PAGADO: ${float(rec['total']):,.2f}*
 --------------------------------
 ¡Gracias por su compra!"""
             st.text_area("Copia este mensaje para WhatsApp:", value=ticket_texto, height=180)
@@ -188,7 +191,6 @@ with tab_inventario:
         st.success("🔓 Modo Administrador Activado")
         c_ing, c_crear = st.columns(2)
         
-        # Ajustar existencias y precios de productos actuales
         with c_ing:
             st.markdown("#### 📦 Modificar Stock / Precio Existente")
             if not df_inv.empty:
@@ -216,7 +218,6 @@ with tab_inventario:
             else:
                 st.info("No hay productos.")
 
-        # CREAR NUEVO PRODUCTO DESDE CERO (MEJORA 4)
         with c_crear:
             st.markdown("#### ✨ Crear Nuevo Producto o Categoría")
             with st.form(key="form_nuevo_prod"):
