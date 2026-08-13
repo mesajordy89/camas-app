@@ -24,25 +24,25 @@ if "autenticado" not in st.session_state:
 if not st.session_state["autenticado"]:
     st.markdown("""
         <style>
-        .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #27293d 100%); color: white; }
+        .stApp { background: linear-gradient(135deg, #0f172a 1e%, #1e293b 100%); color: #f8fafc; }
         .login-box {
-            max-width: 450px;
+            max-width: 420px;
             margin: 100px auto;
             padding: 40px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(10px);
+            background: rgba(30, 41, 59, 0.7);
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(12px);
             text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
         </style>
     """, unsafe_allow_html=True)
 
     st.markdown("""
         <div class="login-box">
-            <h1 style="color: #ffaa00; margin-bottom: 10px;">🔐 Local Mesitas</h1>
-            <p style="color: #bbb; font-size: 16px;">Ingrese su contraseña para acceder al sistema</p>
+            <h1 style="color: #38bdf8; margin-bottom: 10px; font-weight: 800;">🔐 Local Mesitas</h1>
+            <p style="color: #94a3b8; font-size: 15px;">Ingrese su contraseña para acceder al sistema</p>
         </div>
     """, unsafe_allow_html=True)
     
@@ -93,45 +93,63 @@ else:
     ])
     df_ventas.to_csv(FILE_VENTAS, index=False)
 
-# --- ESTILOS VISUALES ---
+# --- ESTILOS VISUALES MODERNOS Y LIMPIOS ---
 st.markdown("""
     <style>
-    .stApp { background-color: #f7f9fc; font-family: 'Segoe UI', Roboto, sans-serif; }
+    .stApp { background-color: #f8fafc; font-family: 'Inter', 'Segoe UI', Roboto, sans-serif; }
     
     .header-box {
-        background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
-        padding: 30px;
-        border-radius: 20px;
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        padding: 35px;
+        border-radius: 24px;
         color: white;
         text-align: center;
         margin-bottom: 30px;
-        box-shadow: 0 10px 25px rgba(255, 65, 108, 0.3);
+        box-shadow: 0 15px 30px rgba(15, 23, 42, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.08);
     }
     
     .card-resibo {
         background: white;
-        padding: 25px;
-        border-radius: 16px;
-        border-left: 6px solid #ff416c;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+        padding: 30px;
+        border-radius: 20px;
+        border-left: 6px solid #3b82f6;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
         margin-bottom: 20px;
+        border-top: 1px solid #f1f5f9;
+        border-right: 1px solid #f1f5f9;
+        border-bottom: 1px solid #f1f5f9;
     }
     
     .stButton>button {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
         color: white;
-        border-radius: 12px;
-        font-weight: 700;
+        border-radius: 14px;
+        font-weight: 600;
         font-size: 16px;
-        height: 55px;
+        height: 52px;
         border: none;
-        box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
-        transition: 0.3s;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        transition: all 0.2s ease;
     }
     
     .stButton>button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(17, 153, 142, 0.6);
+        box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
+        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+    }
+    
+    div[data-baseweb="tab-list"] {
+        gap: 10px;
+        background-color: #e2e8f0;
+        padding: 6px;
+        border-radius: 16px;
+    }
+    
+    div[data-baseweb="tab"] {
+        border-radius: 12px;
+        font-weight: 600;
+        color: #475569;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -144,8 +162,8 @@ with col_logout:
 
 st.markdown("""
     <div class="header-box">
-        <h1 style="color:white; margin:0; font-size: 32px; font-weight: 800;">🏪 LOCAL MESITAS</h1>
-        <p style="margin:10px 0 0 0; font-size: 18px; opacity: 0.9;">Sistema de Caja, Ventas, Apartados y Registro Fotográfico</p>
+        <h1 style="color:white; margin:0; font-size: 32px; font-weight: 800; letter-spacing: -0.5px;">🏪 LOCAL MESITAS</h1>
+        <p style="margin:10px 0 0 0; font-size: 17px; color: #94a3b8;">Sistema de Caja, Ventas, Apartados y Registro Fotográfico</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -329,16 +347,16 @@ with tab_apartados:
                 with col_recibo_txt:
                     st.markdown(f"""
                         <div class="card-resibo">
-                            <h2 style="color: #ff416c; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px;">🧾 RECIBO DE APARTADO</h2>
-                            <p style="font-size: 15px; margin: 4px 0;"><b>📅 Fecha:</b> {r_data['FECHA']}</p>
-                            <p style="font-size: 15px; margin: 4px 0;"><b>👤 Cliente:</b> {r_data['CLIENTE']}</p>
-                            <p style="font-size: 15px; margin: 4px 0;"><b>📞 Teléfono:</b> {r_data['TELEFONO']} | <b>🆔 Cédula:</b> {r_data['CEDULA']}</p>
-                            <p style="font-size: 15px; margin: 4px 0;"><b>📍 Dirección:</b> {r_data['DIRECCION']}</p>
-                            <hr style="border: 0; border-top: 1px dashed #ccc; margin: 10px 0;">
-                            <p style="font-size: 15px; margin: 4px 0;"><b>📦 Producto:</b> {r_data['CANTIDAD']}x {r_data['CATEGORIA']}</p>
-                            <p style="font-size: 16px; margin: 4px 0;"><b>💰 Valor Total:</b> ${r_data['TOTAL']:,.2f}</p>
-                            <p style="font-size: 16px; margin: 4px 0; color: #11998e;"><b>✅ Abonado:</b> ${r_data['ABONADO']:,.2f}</p>
-                            <p style="font-size: 18px; margin: 8px 0; color: #ff4b2b;"><b>🔴 SALDO: ${r_data['SALDO_PENDIENTE']:,.2f}</b></p>
+                            <h2 style="color: #2563eb; margin-top: 0; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; font-weight: 700;">🧾 RECIBO DE APARTADO</h2>
+                            <p style="font-size: 15px; margin: 6px 0; color: #334155;"><b>📅 Fecha:</b> {r_data['FECHA']}</p>
+                            <p style="font-size: 15px; margin: 6px 0; color: #334155;"><b>👤 Cliente:</b> {r_data['CLIENTE']}</p>
+                            <p style="font-size: 15px; margin: 6px 0; color: #334155;"><b>📞 Teléfono:</b> {r_data['TELEFONO']} | <b>🆔 Cédula:</b> {r_data['CEDULA']}</p>
+                            <p style="font-size: 15px; margin: 6px 0; color: #334155;"><b>📍 Dirección:</b> {r_data['DIRECCION']}</p>
+                            <hr style="border: 0; border-top: 1px dashed #cbd5e1; margin: 12px 0;">
+                            <p style="font-size: 15px; margin: 6px 0; color: #334155;"><b>📦 Producto:</b> {r_data['CANTIDAD']}x {r_data['CATEGORIA']}</p>
+                            <p style="font-size: 16px; margin: 6px 0; color: #334155;"><b>💰 Valor Total:</b> ${r_data['TOTAL']:,.2f}</p>
+                            <p style="font-size: 16px; margin: 6px 0; color: #16a34a;"><b>✅ Abonado:</b> ${r_data['ABONADO']:,.2f}</p>
+                            <p style="font-size: 18px; margin: 10px 0; color: #dc2626;"><b>🔴 SALDO: ${r_data['SALDO_PENDIENTE']:,.2f}</b></p>
                         </div>
                     """, unsafe_allow_html=True)
                 
@@ -346,7 +364,7 @@ with tab_apartados:
                     st.markdown("#### 🖼️ Foto del Producto")
                     foto_path = str(r_data.get("FOTO", "Sin foto"))
                     if foto_path != "Sin foto" and os.path.exists(foto_path):
-                        st.image(foto_path, caption=f"{r_data['CATEG']} - {r_data['CLIENTE']}", use_column_width=True)
+                        st.image(foto_path, caption=f"{r_data['CATEGORIA']} - {r_data['CLIENTE']}", use_column_width=True)
                     else:
                         st.info("Sin foto adjunta en este registro.")
 
@@ -371,7 +389,7 @@ with tab_apartados:
                                 df_inv.to_csv(FILE_INV, index=False)
                                 
                             st.session_state["msg_exito"] = f"""
-                                <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; border-radius: 16px; text-align: center; color: white; margin: 15px 0;">
+                                <div style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 30px; border-radius: 16px; text-align: center; color: white; margin: 15px 0;">
                                     <h1 style="margin:0; font-size: 28px;">🎉 ¡DEUDA SALDADA!</h1>
                                     <h3 style="margin:10px 0;">EL CLIENTE <b>{r_data['CLIENTE'].upper()}</b> TERMINÓ DE PAGAR.</h3>
                                     <p style="font-size: 20px; margin:0;">📦 <b>ENTREGUE EL PRODUCTO:</b> {cant_entregar}x {c_prod}</p>
