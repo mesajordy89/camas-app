@@ -65,7 +65,7 @@ else:
     ])
     df_inv.to_csv(FILE_INV, index=False)
 
-# --- CARGAR O CREAR VENTAS (INCLUYENDO CAMPOS DE ABONO Y SALDO) ---
+# --- CARGAR O CREAR VENTAS ---
 if os.path.exists(FILE_VENTAS):
     df_ventas = pd.read_csv(FILE_VENTAS)
     if "ABONADO" not in df_ventas.columns:
@@ -142,7 +142,6 @@ tab_ops, tab_apartados, tab_inventario, tab_historial = st.tabs([
 ])
 
 with tab_ops:
-    # --- VISTA GENERAL DE INVENTARIO ---
     st.markdown("### 📊 Estado Actual del Inventario")
     
     iconos = {"Camas": "🛏️", "Colchones": "💤", "Armarios": "🚪", "Pajaritas": "🎀"}
@@ -165,7 +164,6 @@ with tab_ops:
     
     col_vender, col_ticket = st.columns([1.1, 0.9])
     
-    # --- REGISTRAR VENTA O APARTADO ---
     with col_vender:
         st.markdown("### 🛒 Registrar Venta o Apartado")
         
@@ -183,7 +181,6 @@ with tab_ops:
                 tipo_transaccion = st.selectbox("3️⃣ Tipo de Operación", ["Venta Directa (Pago Total y Entrega Inmediata)", "Apartado con Abono Inicial (El producto queda reservado)"])
                 metodo_pago = st.selectbox("4️⃣ Método de Pago del Abono / Total", ["Efectivo", "Transferencia", "Tarjeta"])
                 
-                # Si es apartado, pedir cuánto deja adelantado
                 monto_abonado_input = 0.0
                 if "Apartado" in tipo_transaccion:
                     total_calculado_temp = float(cant_vender) * float(precio_unitario)
@@ -221,7 +218,6 @@ with tab_ops:
                         if cant_vender > stock_disponible:
                             st.error(f"❌ Inventario insuficiente. Solo quedan {stock_disponible} unidades en tienda.")
                         else:
-                            # Descuenta stock de inmediato
                             df_inv.loc[df_inv["CATEGORIA"] == categoria_sel, "STOCK"] -= cant_vender
                             df_inv.to_csv(FILE_INV, index=False)
                             
@@ -257,11 +253,9 @@ with tab_ops:
 ¡Gracias por su preferencia!"""
                             st.rerun()
                     else:
-                        # Es un Apartado: NO descontamos stock aún porque el producto sigue guardado en el local hasta que termine de pagar
                         saldo_calc = total_calculado - monto_abonado_input
                         estado_ap = "Pagado y Entregado" if saldo_calc <= 0 else "Apartado (Pendiente de Saldo)"
                         
-                        # Si por casualidad pagó todo de una vez en el apartado
                         if saldo_calc <= 0:
                             if cant_vender > stock_disponible:
                                 st.error(f"❌ Stock insuficiente. Solo quedan {stock_disponible} unidades.")
@@ -302,7 +296,6 @@ Estado: {estado_ap}
 ¡Gracias por su apartado!"""
                         st.rerun()
 
-    # --- RECIBO Y BOTÓN DE COPIA DIRECTA ---
     with col_ticket:
         st.markdown("### 🧾 Comprobante para WhatsApp")
         if "ultimo_recibo" in st.session_state:
@@ -313,11 +306,11 @@ Estado: {estado_ap}
                 st.code(texto_recibo, language="")
                 st.toast("¡Comprobante copiado! Ya puedes pegarlo en WhatsApp.", icon="✅")
         else:
-            st.info("💡 Aquí aparecerá el comprobante automático de la última operación listo para copiar con un solo botón y enviarlo por WhatsApp.")
+            st.info("💡 Aquí aparecerá el comprobante automático de la última operación listo para copiar con un solo botón.")
 
-# ================= TAB 2: MÓDULO DE APARTADOS Y ABONOS =================
+# ================= TAB 2: MÓDULO DE APARTADOS Y ABONOS (CON CUADRO DE FELICIDADES) =================
 with tab_apartados:
-    st.markdown("### 📦 Control de Apartados y Abonos Pendientes")
+    st.markdown("### 📦 Control de Apartados y Abonos Activos")
     
     df_apartados = pd.read_csv(FILE_VENTAS) if os.path.exists(FILE_VENTAS) else pd.DataFrame()
     
@@ -328,24 +321,39 @@ with tab_apartados:
         st.metric("📌 Saldo Total Pendiente por Cobrar de Apartados", f"${total_por_cobrar_ap:,.2f}")
         
         st.markdown("---")
+        
+        # --- MENSAJE RECIÉN CREADO SI ALGUIEN ACABÓ DE PAGAR ---
+        if "mensaje_exito_pago" in st.session_state:
+            st.markdown(st.session_state["mensaje_exito_pago"], unsafe_allow_html=True)
+            if st.button("🔄 Ocultar este aviso"):
+                del st.session_state["mensaje_exito_pago"]
+                st.rerun()
+            st.markdown("---")
+
         if pendientes_ap.empty:
             st.success("🎉 ¡No hay apartados activos en este momento! Todos han sido retirados.")
         else:
-            st.markdown("#### Listado de Apartados Activos en Bodega")
-            st.dataframe(pendientes_ap, use_container_width=True)
+            st.markdown("#### Listado detallado de Apartados en Bodega")
+            # Mostramos las columnas clave claras
+            df_mostrar_simple = pendientes_ap[["FECHA", "CLIENTE", "CATEGORIA", "CANTIDAD", "TOTAL", "ABONADO", "SALDO_PENDIENTE"]]
+            st.dataframe(df_mostrar_simple, use_container_width=True)
             
-            st.markdown("#### 💵 Registrar Nuevo Abono o Liquidar Apartado")
+            st.markdown("#### 💵 Registrar Nuevo Abono")
             opciones_aps = [f"Fila {i} | Cliente: {row['CLIENTE']} | Prod: {row['CATEGORIA']} | Pendiente: ${row['SALDO_PENDIENTE']}" for i, row in pendientes_ap.iterrows()]
-            ap_seleccionado = st.selectbox("Selecciona el apartado del cliente", opciones_aps)
+            ap_seleccionado = st.selectbox("Selecciona la cuenta del cliente", opciones_aps)
             
             with st.form("form_abonar"):
                 idx_str = ap_seleccionado.split(" | ")[0].replace("Fila ", "")
                 idx_ap = int(idx_str)
+                
+                cliente_actual_nombre = df_apartados.loc[idx_ap, "CLIENTE"]
+                prod_actual_nombre = df_apartados.loc[idx_ap, "CATEGORIA"]
                 saldo_actual_cliente = float(df_apartados.loc[idx_ap, "SALDO_PENDIENTE"])
                 
+                st.markdown(f"Cliente seleccionado: **{cliente_actual_nombre}** | Producto: **{prod_actual_nombre}** | Debe: **${saldo_actual_cliente:,.2f}**")
                 monto_abono_extra = st.number_input("Monto que abona hoy ($)", min_value=0.0, max_value=saldo_actual_cliente, value=saldo_actual_cliente, step=5.0)
                 
-                btn_guardar_abono = st.form_submit_button("💳 REGISTRAR ABONO Y ACTUALIZAR")
+                btn_guardar_abono = st.form_submit_button("💳 REGISTRAR ABONO")
                 
                 if btn_guardar_abono:
                     nuevo_abonado = float(df_apartados.loc[idx_ap, "ABONADO"]) + monto_abono_extra
@@ -354,7 +362,6 @@ with tab_apartados:
                     df_apartados.loc[idx_ap, "ABONADO"] = nuevo_abonado
                     df_apartados.loc[idx_ap, "SALDO_PENDIENTE"] = max(0.0, nuevo_saldo)
                     
-                    # Si ya terminó de pagar, se marca como pagado y se descuenta del stock real (porque ahora sí se lleva el producto)
                     if nuevo_saldo <= 0:
                         df_apartados.loc[idx_ap, "ESTADO"] = "Pagado y Entregado"
                         
@@ -364,8 +371,15 @@ with tab_apartados:
                         if cat_ap in df_inv["CATEGORIA"].values:
                             df_inv.loc[df_inv["CATEGORIA"] == cat_ap, "STOCK"] -= cant_ap
                             df_inv.to_csv(FILE_INV, index=False)
-                            
-                        st.success("¡Deuda liquidada al 100%! El producto ha sido entregado y descontado del stock.")
+                        
+                        # --- CUADRO DE FELICIDADES ESPECÍFICO ---
+                        st.session_state["mensaje_exito_pago"] = f"""
+                            <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 25px; border-radius: 14px; text-align: center; color: white; margin: 15px 0; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+                                <h1 style="margin:0; font-size: 28px;">🎉 ¡FELICIDADES!</h1>
+                                <h3 style="margin:10px 0; font-size: 20px;">EL CLIENTE <b>{cliente_actual_nombre.upper()}</b> ACABÓ SU PAGO.</h3>
+                                <p style="font-size: 18px; margin:5px 0;">📦 <b>ENTREGUE EL PRODUCTO:</b> {cant_ap}x {cat_ap}</p>
+                            </div>
+                        """
                     else:
                         st.success(f"¡Abono registrado! Nuevo saldo pendiente: ${max(0.0, nuevo_saldo):,.2f}")
                         
@@ -444,7 +458,6 @@ with tab_historial:
         if df_v_hist.empty:
             st.info("Aún no hay registros de ventas o apartados.")
         else:
-            # --- CIERRE DE CAJA VISUAL (Suma el dinero realmente abonado) ---
             tot_abonado = df_v_hist["ABONADO"].sum() if "ABONADO" in df_v_hist.columns else df_v_hist["TOTAL"].sum()
             tot_efectivo = df_v_hist[df_v_hist["METODO_PAGO"] == "Efectivo"]["ABONADO"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
             tot_trans = df_v_hist[df_v_hist["METODO_PAGO"] == "Transferencia"]["ABONADO"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
@@ -474,7 +487,6 @@ with tab_historial:
                 
             st.dataframe(df_filtrado, use_container_width=True)
             
-            # --- ANULAR VENTA ---
             st.markdown("---")
             st.markdown("#### 🗑️ Anular Registro / Operación")
             clave_borrar = st.text_input("🔑 Clave Administrador para Anular", type="password", key="key_del_venta")
