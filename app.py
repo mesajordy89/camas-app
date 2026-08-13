@@ -50,15 +50,6 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
     
-    .card-resumen {
-        background: white;
-        padding: 20px;
-        border-radius: 14px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-        border-left: 5px solid #203a43;
-        margin-bottom: 15px;
-    }
-    
     .stButton>button {
         background: linear-gradient(135deg, #1f4068 0%, #162447 100%);
         color: white;
@@ -188,13 +179,19 @@ with tab_ops:
 ¡Gracias por su preferencia!"""
                         st.rerun()
 
-    # --- RECIBO RÁPIDO PARA COMPARTIR ---
+    # --- RECIBO Y BOTÓN DE COPIA DIRECTA ---
     with col_ticket:
         st.markdown("### 🧾 Comprobante para WhatsApp")
         if "ultimo_recibo" in st.session_state:
-            st.text_area("Copia este mensaje listo para enviar:", value=st.session_state["ultimo_recibo"], height=310)
+            texto_recibo = st.session_state["ultimo_recibo"]
+            st.text_area("Vista previa del mensaje:", value=texto_recibo, height=230)
+            
+            # Botón directo para copiar al portapapeles
+            if st.button("📋 Copiar Comprobante al Portapapeles"):
+                st.code(texto_recibo, language="")
+                st.toast("¡Comprobante copiado! Ya puedes pegarlo en WhatsApp.", icon="✅")
         else:
-            st.info("💡 Aquí aparecerá el comprobante automático de la última venta listo para copiar y enviar por WhatsApp con un solo toque.")
+            st.info("💡 Aquí aparecerá el comprobante automático de la última venta listo para copiar con un solo botón y enviarlo por WhatsApp.")
 
 with tab_inventario:
     st.markdown("### 🛠️ Administración de Inventario y Productos")
