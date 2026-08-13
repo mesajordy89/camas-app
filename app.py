@@ -6,10 +6,52 @@ import os
 # Configuración de página
 st.set_page_config(page_title="Local Mesitas - Control de Inventario", page_icon="🛏️", layout="wide")
 
-CLAVE_ADMIN = "1234"
+CLAVE_ACCESO = "1234"      # Clave para entrar a la aplicación
+CLAVE_ADMIN = "1234"       # Clave para administrar / anular
 
 FILE_INV = "inventario.csv"
 FILE_VENTAS = "ventas.csv"
+
+# --- SISTEMA DE BLOQUEO CON CONTRASEÑA ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+
+if not st.session_state["autenticado"]:
+    st.markdown("""
+        <style>
+        .stApp { background-color: #0f2027; color: white; }
+        .login-box {
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            backdrop-filter: blur(4px);
+            text-align: center;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+        <div class="login-box">
+            <h2>🔐 Acceso Restringido</h2>
+            <p style="color: #bbb;">Local Mesitas - Control Interno</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 1.2, 1])
+    with col2:
+        passw = st.text_input("Ingresa la clave de acceso", type="password", key="input_pass_app")
+        if st.button("🚀 INGRESAR A LA APP"):
+            if passw == CLAVE_ACCESO:
+                st.session_state["autenticado"] = True
+                st.rerun()
+            else:
+                st.error("❌ Clave incorrecta")
+    st.stop()  # Detiene la ejecución aquí si no está autenticado
+
+# --- A PARTIR DE AQUÍ LA APP FUNCIONA CON NORMALIDAD ---
 
 # Cargar o crear Inventario
 if os.path.exists(FILE_INV):
@@ -68,6 +110,13 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+# Botón discreto para cerrar sesión en la barra lateral superior o cabecera
+col_title, col_logout = st.columns([6, 1])
+with col_logout:
+    if st.button("🔒 Salir"):
+        st.session_state["autenticado"] = False
+        st.rerun()
 
 st.markdown("""
     <div class="header-box">
@@ -186,7 +235,6 @@ with tab_ops:
             texto_recibo = st.session_state["ultimo_recibo"]
             st.text_area("Vista previa del mensaje:", value=texto_recibo, height=230)
             
-            # Botón directo para copiar al portapapeles
             if st.button("📋 Copiar Comprobante al Portapapeles"):
                 st.code(texto_recibo, language="")
                 st.toast("¡Comprobante copiado! Ya puedes pegarlo en WhatsApp.", icon="✅")
