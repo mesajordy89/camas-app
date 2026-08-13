@@ -4,10 +4,10 @@ from datetime import datetime
 import os
 
 # Configuración de página
-st.set_page_config(page_title="Local Mesitas - Control de Inventario", page_icon="🛏️", layout="wide")
+st.set_page_config(page_title="Local Mesitas - Sistema POS y Apartados", page_icon="🛏️", layout="wide")
 
-CLAVE_ACCESO = "1234"      # Clave para entrar a la aplicación
-CLAVE_ADMIN = "1234"       # Clave para administrar / anular
+CLAVE_ACCESO = "1234"
+CLAVE_ADMIN = "1234"
 
 FILE_INV = "inventario.csv"
 FILE_VENTAS = "ventas.csv"
@@ -43,17 +43,15 @@ if not st.session_state["autenticado"]:
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
         passw = st.text_input("Ingresa la clave de acceso", type="password", key="input_pass_app")
-        if st.button("🚀 INGRESAR A LA APP"):
+        if st.button("🚀 INGRESAR AL SISTEMA"):
             if passw == CLAVE_ACCESO:
                 st.session_state["autenticado"] = True
                 st.rerun()
             else:
                 st.error("❌ Clave incorrecta")
-    st.stop()  # Detiene la ejecución aquí si no está autenticado
+    st.stop()
 
-# --- A PARTIR DE AQUÍ LA APP FUNCIONA CON NORMALIDAD ---
-
-# Cargar o crear Inventario
+# --- CARGAR O CREAR INVENTARIO ---
 if os.path.exists(FILE_INV):
     df_inv = pd.read_csv(FILE_INV)
     if "PRECIO" not in df_inv.columns:
@@ -67,13 +65,18 @@ else:
     ])
     df_inv.to_csv(FILE_INV, index=False)
 
-# Cargar o crear Ventas
+# --- CARGAR O CREAR VENTAS (INCLUYENDO CAMPOS DE ABONO Y SALDO) ---
 if os.path.exists(FILE_VENTAS):
     df_ventas = pd.read_csv(FILE_VENTAS)
+    if "ABONADO" not in df_ventas.columns:
+        df_ventas["ABONADO"] = df_ventas["TOTAL"]
+        df_ventas["SALDO_PENDIENTE"] = 0.0
+        df_ventas["ESTADO"] = "Pagado y Entregado"
+        df_ventas.to_csv(FILE_VENTAS, index=False)
 else:
     df_ventas = pd.DataFrame(columns=[
         "FECHA", "CATEGORIA", "CANTIDAD", "PRECIO_UNITARIO", "TOTAL", 
-        "METODO_PAGO", "CLIENTE", "CEDULA", "TELEFONO", "CORREO"
+        "ABONADO", "SALDO_PENDIENTE", "METODO_PAGO", "CLIENTE", "CEDULA", "TELEFONO", "CORREO", "ESTADO"
     ])
     df_ventas.to_csv(FILE_VENTAS, index=False)
 
@@ -111,7 +114,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Botón discreto para cerrar sesión en la barra lateral superior o cabecera
+# Botón para cerrar sesión
 col_title, col_logout = st.columns([6, 1])
 with col_logout:
     if st.button("🔒 Salir"):
@@ -121,7 +124,7 @@ with col_logout:
 st.markdown("""
     <div class="header-box">
         <h1 style="color:white; margin:0; font-weight: 700;">🏪 Local Mesitas</h1>
-        <p style="margin:8px 0 0 0; font-size: 16px; opacity: 0.85;">Sistema Inteligente de Inventarios y Cierre de Caja</p>
+        <p style="margin:8px 0 0 0; font-size: 16px; opacity: 0.85;">Sistema POS con Control de Inventario y Apartados / Abonos</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -131,7 +134,12 @@ if not stock_critico.empty:
     productos_bajos = ", ".join([f"**{row['CATEGORIA']}** ({row['STOCK']} ud.)" for _, row in stock_critico.iterrows()])
     st.warning(f"🚨 **ATENCIÓN - STOCK BAJO:** {productos_bajos}. ¡Reabastece pronto para no perder ventas!")
 
-tab_ops, tab_inventario, tab_historial = st.tabs(["⚡ Vender y Operaciones", "🛠️ Inventario y Catálogo", "📜 Historial y Cierre de Caja"])
+tab_ops, tab_apartados, tab_inventario, tab_historial = st.tabs([
+    "⚡ Vender y Operaciones", 
+    "📦 Apartados y Abonos", 
+    "🛠️ Inventario y Catálogo", 
+    "📜 Historial y Cierre"
+])
 
 with tab_ops:
     # --- VISTA GENERAL DE INVENTARIO ---
@@ -157,9 +165,9 @@ with tab_ops:
     
     col_vender, col_ticket = st.columns([1.1, 0.9])
     
-    # --- REGISTRAR VENTA ---
+    # --- REGISTRAR VENTA O APARTADO ---
     with col_vender:
-        st.markdown("### 🛒 Registrar Venta Rápida")
+        st.markdown("### 🛒 Registrar Venta o Apartado")
         
         if df_inv.empty:
             st.info("No hay productos registrados en el inventario.")
@@ -171,11 +179,18 @@ with tab_ops:
             precio_unitario = float(row_sel["PRECIO"])
             
             with st.form(key="form_venta_unificado"):
-                cant_vender = st.number_input("2️⃣ Cantidad Vendida", min_value=1, value=1, step=1)
-                metodo_pago = st.selectbox("3️⃣ Método de Pago", ["Efectivo", "Transferencia", "Tarjeta", "Crédito / Cuotas"])
+                cant_vender = st.number_input("2️⃣ Cantidad a Comprar / Apartar", min_value=1, value=1, step=1)
+                tipo_transaccion = st.selectbox("3️⃣ Tipo de Operación", ["Venta Directa (Pago Total y Entrega Inmediata)", "Apartado con Abono Inicial (El producto queda reservado)"])
+                metodo_pago = st.selectbox("4️⃣ Método de Pago del Abono / Total", ["Efectivo", "Transferencia", "Tarjeta"])
+                
+                # Si es apartado, pedir cuánto deja adelantado
+                monto_abonado_input = 0.0
+                if "Apartado" in tipo_transaccion:
+                    total_calculado_temp = float(cant_vender) * float(precio_unitario)
+                    monto_abonado_input = st.number_input("💵 ¿Cuánto dinero deja adelantado hoy? ($)", min_value=0.0, max_value=total_calculado_temp, value=10.0, step=5.0)
                 
                 st.markdown("---")
-                st.markdown("**4️⃣ Datos del Cliente:**")
+                st.markdown("**5️⃣ Datos del Cliente:**")
                 cliente_nom = st.text_input("Nombre y Apellido", value="Cliente General")
                 cliente_ced = st.text_input("Cédula / DNI", value="S/N")
                 cliente_tel = st.text_input("Teléfono", value="")
@@ -183,21 +198,76 @@ with tab_ops:
                 
                 total_calculado = float(cant_vender) * float(precio_unitario)
                 
-                st.markdown(f"""
-                    <div style="background-color: #ffffff; border: 1px solid #e0e0e0; padding: 12px; border-radius: 10px; text-align: center; margin: 12px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
-                        <p style="margin:0; font-size: 13px; color: #666;">Precio unitario: ${precio_unitario:,.2f}</p>
-                        <h2 style="margin:4px 0 0 0; color: #1f4068;">TOTAL: <b>${total_calculado:,.2f}</b></h2>
-                    </div>
-                """, unsafe_allow_html=True)
+                if "Apartado" in tipo_transaccion:
+                    saldo_pendiente_calc = total_calculado - monto_abonado_input
+                    st.markdown(f"""
+                        <div style="background-color: #ffffff; border: 1px solid #e0e0e0; padding: 12px; border-radius: 10px; text-align: center; margin: 12px 0;">
+                            <p style="margin:0; font-size: 13px; color: #666;">Total Producto: ${total_calculado:,.2f} | Abonado hoy: ${monto_abonado_input:,.2f}</p>
+                            <h3 style="margin:4px 0 0 0; color: #d9534f;">SALDO PENDIENTE: <b>${saldo_pendiente_calc:,.2f}</b></h3>
+                        </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                        <div style="background-color: #ffffff; border: 1px solid #e0e0e0; padding: 12px; border-radius: 10px; text-align: center; margin: 12px 0;">
+                            <p style="margin:0; font-size: 13px; color: #666;">Precio unitario: ${precio_unitario:,.2f}</p>
+                            <h2 style="margin:4px 0 0 0; color: #1f4068;">TOTAL: <b>${total_calculado:,.2f}</b></h2>
+                        </div>
+                    """, unsafe_allow_html=True)
                 
-                btn_vender = st.form_submit_button("🛍️ CONFIRMAR Y REGISTRAR VENTA")
+                btn_vender = st.form_submit_button("🛍️ PROCESAR OPERACIÓN")
                 
                 if btn_vender:
-                    if cant_vender > stock_disponible:
-                        st.error(f"❌ Inventario insuficiente. Solo quedan {stock_disponible} unidades.")
+                    if "Venta Directa" in tipo_transaccion:
+                        if cant_vender > stock_disponible:
+                            st.error(f"❌ Inventario insuficiente. Solo quedan {stock_disponible} unidades en tienda.")
+                        else:
+                            # Descuenta stock de inmediato
+                            df_inv.loc[df_inv["CATEGORIA"] == categoria_sel, "STOCK"] -= cant_vender
+                            df_inv.to_csv(FILE_INV, index=False)
+                            
+                            nueva_venta = pd.DataFrame([{
+                                "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "CATEGORIA": categoria_sel,
+                                "CANTIDAD": cant_vender,
+                                "PRECIO_UNITARIO": precio_unitario,
+                                "TOTAL": total_calculado,
+                                "ABONADO": total_calculado,
+                                "SALDO_PENDIENTE": 0.0,
+                                "METODO_PAGO": metodo_pago,
+                                "CLIENTE": cliente_nom,
+                                "CEDULA": cliente_ced,
+                                "TELEFONO": cliente_tel,
+                                "CORREO": cliente_cor,
+                                "ESTADO": "Pagado y Entregado"
+                            }])
+                            df_v_act = pd.concat([df_ventas, nueva_venta], ignore_index=True)
+                            df_v_act.to_csv(FILE_VENTAS, index=False)
+                            
+                            st.success("¡Venta directa registrada con éxito!")
+                            st.session_state["ultimo_recibo"] = f"""*LOCAL MESITAS - COMPROBANTE DE VENTA*
+--------------------------------
+📅 Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+👤 Cliente: {cliente_nom}
+📦 Producto: {categoria_sel}
+🔢 Cantidad: {cant_vender} ud.
+💳 Método de pago: {metodo_pago}
+📌 Estado: Pagado y Entregado
+💰 TOTAL PAGADO: ${total_calculado:,.2f}
+--------------------------------
+¡Gracias por su preferencia!"""
+                            st.rerun()
                     else:
-                        df_inv.loc[df_inv["CATEGORIA"] == categoria_sel, "STOCK"] -= cant_vender
-                        df_inv.to_csv(FILE_INV, index=False)
+                        # Es un Apartado: NO descontamos stock aún porque el producto sigue guardado en el local hasta que termine de pagar
+                        saldo_calc = total_calculado - monto_abonado_input
+                        estado_ap = "Pagado y Entregado" if saldo_calc <= 0 else "Apartado (Pendiente de Saldo)"
+                        
+                        # Si por casualidad pagó todo de una vez en el apartado
+                        if saldo_calc <= 0:
+                            if cant_vender > stock_disponible:
+                                st.error(f"❌ Stock insuficiente. Solo quedan {stock_disponible} unidades.")
+                                st.stop()
+                            df_inv.loc[df_inv["CATEGORIA"] == categoria_sel, "STOCK"] -= cant_vender
+                            df_inv.to_csv(FILE_INV, index=False)
                         
                         nueva_venta = pd.DataFrame([{
                             "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -205,27 +275,31 @@ with tab_ops:
                             "CANTIDAD": cant_vender,
                             "PRECIO_UNITARIO": precio_unitario,
                             "TOTAL": total_calculado,
+                            "ABONADO": monto_abonado_input,
+                            "SALDO_PENDIENTE": max(0.0, saldo_calc),
                             "METODO_PAGO": metodo_pago,
                             "CLIENTE": cliente_nom,
                             "CEDULA": cliente_ced,
                             "TELEFONO": cliente_tel,
-                            "CORREO": cliente_cor
+                            "CORREO": cliente_cor,
+                            "ESTADO": estado_ap
                         }])
                         df_v_act = pd.concat([df_ventas, nueva_venta], ignore_index=True)
                         df_v_act.to_csv(FILE_VENTAS, index=False)
                         
-                        st.success(f"¡Venta registrada con éxito!")
-                        
-                        st.session_state["ultimo_recibo"] = f"""*LOCAL MESITAS - COMPROBANTE DE VENTA*
+                        st.success("¡Apartado registrado correctamente!")
+                        st.session_state["ultimo_recibo"] = f"""*LOCAL MESITAS - TICKET DE APARTADO*
 --------------------------------
 📅 Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 👤 Cliente: {cliente_nom}
 📦 Producto: {categoria_sel}
 🔢 Cantidad: {cant_vender} ud.
-💳 Método de pago: {metodo_pago}
-💰 TOTAL PAGADO: ${total_calculado:,.2f}
+💰 Valor Total: ${total_calculado:,.2f}
+💵 Dinero Abonado: ${monto_abonado_input:,.2f}
+📌 Saldo Pendiente: ${max(0.0, saldo_calc):,.2f}
+Estado: {estado_ap}
 --------------------------------
-¡Gracias por su preferencia!"""
+¡Gracias por su apartado!"""
                         st.rerun()
 
     # --- RECIBO Y BOTÓN DE COPIA DIRECTA ---
@@ -239,7 +313,66 @@ with tab_ops:
                 st.code(texto_recibo, language="")
                 st.toast("¡Comprobante copiado! Ya puedes pegarlo en WhatsApp.", icon="✅")
         else:
-            st.info("💡 Aquí aparecerá el comprobante automático de la última venta listo para copiar con un solo botón y enviarlo por WhatsApp.")
+            st.info("💡 Aquí aparecerá el comprobante automático de la última operación listo para copiar con un solo botón y enviarlo por WhatsApp.")
+
+# ================= TAB 2: MÓDULO DE APARTADOS Y ABONOS =================
+with tab_apartados:
+    st.markdown("### 📦 Control de Apartados y Abonos Pendientes")
+    
+    df_apartados = pd.read_csv(FILE_VENTAS) if os.path.exists(FILE_VENTAS) else pd.DataFrame()
+    
+    if not df_apartados.empty and "ESTADO" in df_apartados.columns:
+        pendientes_ap = df_apartados[df_apartados["ESTADO"].str.contains("Apartado", case=False, na=False)]
+        
+        total_por_cobrar_ap = pendientes_ap["SALDO_PENDIENTE"].sum() if not pendientes_ap.empty else 0
+        st.metric("📌 Saldo Total Pendiente por Cobrar de Apartados", f"${total_por_cobrar_ap:,.2f}")
+        
+        st.markdown("---")
+        if pendientes_ap.empty:
+            st.success("🎉 ¡No hay apartados activos en este momento! Todos han sido retirados.")
+        else:
+            st.markdown("#### Listado de Apartados Activos en Bodega")
+            st.dataframe(pendientes_ap, use_container_width=True)
+            
+            st.markdown("#### 💵 Registrar Nuevo Abono o Liquidar Apartado")
+            opciones_aps = [f"Fila {i} | Cliente: {row['CLIENTE']} | Prod: {row['CATEGORIA']} | Pendiente: ${row['SALDO_PENDIENTE']}" for i, row in pendientes_ap.iterrows()]
+            ap_seleccionado = st.selectbox("Selecciona el apartado del cliente", opciones_aps)
+            
+            with st.form("form_abonar"):
+                idx_str = ap_seleccionado.split(" | ")[0].replace("Fila ", "")
+                idx_ap = int(idx_str)
+                saldo_actual_cliente = float(df_apartados.loc[idx_ap, "SALDO_PENDIENTE"])
+                
+                monto_abono_extra = st.number_input("Monto que abona hoy ($)", min_value=0.0, max_value=saldo_actual_cliente, value=saldo_actual_cliente, step=5.0)
+                
+                btn_guardar_abono = st.form_submit_button("💳 REGISTRAR ABONO Y ACTUALIZAR")
+                
+                if btn_guardar_abono:
+                    nuevo_abonado = float(df_apartados.loc[idx_ap, "ABONADO"]) + monto_abono_extra
+                    nuevo_saldo = float(df_apartados.loc[idx_ap, "SALDO_PENDIENTE"]) - monto_abono_extra
+                    
+                    df_apartados.loc[idx_ap, "ABONADO"] = nuevo_abonado
+                    df_apartados.loc[idx_ap, "SALDO_PENDIENTE"] = max(0.0, nuevo_saldo)
+                    
+                    # Si ya terminó de pagar, se marca como pagado y se descuenta del stock real (porque ahora sí se lleva el producto)
+                    if nuevo_saldo <= 0:
+                        df_apartados.loc[idx_ap, "ESTADO"] = "Pagado y Entregado"
+                        
+                        cat_ap = df_apartados.loc[idx_ap, "CATEGORIA"]
+                        cant_ap = int(df_apartados.loc[idx_ap, "CANTIDAD"])
+                        
+                        if cat_ap in df_inv["CATEGORIA"].values:
+                            df_inv.loc[df_inv["CATEGORIA"] == cat_ap, "STOCK"] -= cant_ap
+                            df_inv.to_csv(FILE_INV, index=False)
+                            
+                        st.success("¡Deuda liquidada al 100%! El producto ha sido entregado y descontado del stock.")
+                    else:
+                        st.success(f"¡Abono registrado! Nuevo saldo pendiente: ${max(0.0, nuevo_saldo):,.2f}")
+                        
+                    df_apartados.to_csv(FILE_VENTAS, index=False)
+                    st.rerun()
+    else:
+        st.info("No hay registros todavía.")
 
 with tab_inventario:
     st.markdown("### 🛠️ Administración de Inventario y Productos")
@@ -309,27 +442,25 @@ with tab_historial:
     if os.path.exists(FILE_VENTAS):
         df_v_hist = pd.read_csv(FILE_VENTAS)
         if df_v_hist.empty:
-            st.info("Aún no hay ventas registradas.")
+            st.info("Aún no hay registros de ventas o apartados.")
         else:
-            # --- CIERRE DE CAJA VISUAL ---
-            tot_general = df_v_hist["TOTAL"].sum() if "TOTAL" in df_v_hist.columns else 0
-            tot_efectivo = df_v_hist[df_v_hist["METODO_PAGO"] == "Efectivo"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
-            tot_trans = df_v_hist[df_v_hist["METODO_PAGO"] == "Transferencia"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
-            tot_tarjeta = df_v_hist[df_v_hist["METODO_PAGO"] == "Tarjeta"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
-            tot_credito = df_v_hist[df_v_hist["METODO_PAGO"] == "Crédito / Cuotas"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
+            # --- CIERRE DE CAJA VISUAL (Suma el dinero realmente abonado) ---
+            tot_abonado = df_v_hist["ABONADO"].sum() if "ABONADO" in df_v_hist.columns else df_v_hist["TOTAL"].sum()
+            tot_efectivo = df_v_hist[df_v_hist["METODO_PAGO"] == "Efectivo"]["ABONADO"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
+            tot_trans = df_v_hist[df_v_hist["METODO_PAGO"] == "Transferencia"]["ABONADO"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
+            tot_tarjeta = df_v_hist[df_v_hist["METODO_PAGO"] == "Tarjeta"]["ABONADO"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
 
             st.markdown(f"""
                 <div style="background: linear-gradient(135deg, #1f4068 0%, #162447 100%); padding: 20px; border-radius: 14px; text-align: center; color: white; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-                    <p style="margin:0; font-size: 14px; letter-spacing: 1px; opacity: 0.9;">TOTAL GENERAL DE VENTAS ACUMULADAS</p>
-                    <h1 style="margin:6px 0 0 0; font-size: 42px; color: #ffd369;">${tot_general:,.2f}</h1>
+                    <p style="margin:0; font-size: 14px; letter-spacing: 1px; opacity: 0.9;">TOTAL DINERO RECIBIDO (VENTAS + ABONOS)</p>
+                    <h1 style="margin:6px 0 0 0; font-size: 42px; color: #ffd369;">${tot_abonado:,.2f}</h1>
                 </div>
             """, unsafe_allow_html=True)
 
-            m1, m2, m3, m4 = st.columns(4)
+            m1, m2, m3 = st.columns(3)
             m1.metric("💵 Efectivo", f"${tot_efectivo:,.2f}")
             m2.metric("🏦 Transf.", f"${tot_trans:,.2f}")
             m3.metric("💳 Tarjeta", f"${tot_tarjeta:,.2f}")
-            m4.metric("📄 Crédito", f"${tot_credito:,.2f}")
             
             st.markdown("---")
             busqueda = st.text_input("🔍 Buscar por Cliente o Cédula:")
@@ -345,29 +476,30 @@ with tab_historial:
             
             # --- ANULAR VENTA ---
             st.markdown("---")
-            st.markdown("#### 🗑️ Anular Venta Errónea")
-            clave_borrar = st.text_input("🔑 Clave Administrador para Anular Venta", type="password", key="key_del_venta")
+            st.markdown("#### 🗑️ Anular Registro / Operación")
+            clave_borrar = st.text_input("🔑 Clave Administrador para Anular", type="password", key="key_del_venta")
             
             if clave_borrar == CLAVE_ADMIN:
                 if not df_v_hist.empty:
                     opciones_ventas = [f"Fila {i} | Fecha: {row['FECHA']} | Cliente: {row['CLIENTE']} | Total: ${row['TOTAL']}" for i, row in df_v_hist.iterrows()]
-                    venta_a_borrar_str = st.selectbox("Selecciona la venta a eliminar", opciones_ventas)
+                    venta_a_borrar_str = st.selectbox("Selecciona la operación a eliminar", opciones_ventas)
                     
-                    if st.button("❌ ELIMINAR VENTA Y DEVOLVER STOCK"):
+                    if st.button("❌ ELIMINAR Y DEVOLVER STOCK (SI ESTABA ENTREGADO)"):
                         idx_str = venta_a_borrar_str.split(" | ")[0].replace("Fila ", "")
                         idx_venta = int(idx_str)
                         
-                        cat_venta = df_v_hist.loc[idx_venta, "CATEGORIA"]
-                        cant_venta = int(df_v_hist.loc[idx_venta, "CANTIDAD"])
-                        
-                        if cat_venta in df_inv["CATEGORIA"].values:
-                            df_inv.loc[df_inv["CATEGORIA"] == cat_venta, "STOCK"] += cant_venta
-                            df_inv.to_csv(FILE_INV, index=False)
+                        estado_reg = df_v_hist.loc[idx_venta, "ESTADO"]
+                        if "Pagado" in str(estado_reg):
+                            cat_venta = df_v_hist.loc[idx_venta, "CATEGORIA"]
+                            cant_venta = int(df_v_hist.loc[idx_venta, "CANTIDAD"])
+                            if cat_venta in df_inv["CATEGORIA"].values:
+                                df_inv.loc[df_inv["CATEGORIA"] == cat_venta, "STOCK"] += cant_venta
+                                df_inv.to_csv(FILE_INV, index=False)
                         
                         df_v_nuevo = df_v_hist.drop(idx_venta).reset_index(drop=True)
                         df_v_nuevo.to_csv(FILE_VENTAS, index=False)
                         
-                        st.success("¡Venta eliminada y stock devuelto!")
+                        st.success("¡Registro eliminado correctamente!")
                         st.rerun()
             elif clave_borrar != "":
                 st.error("Clave incorrecta")
@@ -377,6 +509,6 @@ with tab_historial:
             st.download_button(
                 label="📥 Descargar Reporte Completo (CSV)",
                 data=csv_data,
-                file_name=f"ventas_mesitas_{datetime.now().strftime('%Y%m%d')}.csv",
+                file_name=f"reporte_mesitas_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime='text/csv'
             )
