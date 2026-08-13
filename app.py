@@ -108,7 +108,6 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    /* Botones grandes y llamativos */
     .stButton>button {
         background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
         color: white;
@@ -212,7 +211,7 @@ with tab_ops:
                     st.success("¡Venta procesada con éxito!")
                     st.rerun()
 
-# ================= TAB 2: APARTADOS Y ABONOS (GRANDE Y CON RECIBO VISIBLE) =================
+# ================= TAB 2: APARTADOS Y ABONOS =================
 with tab_apartados:
     st.markdown("### 📦 Gestión de Apartados y Clientes")
     
@@ -287,7 +286,6 @@ with tab_apartados:
         if pendientes.empty:
             st.success("✨ ¡No hay apartados pendientes en este momento!")
         else:
-            # Seleccionador de recibo visual grande
             lista_recibos = [f"Fila {i} ➔ Cliente: {r['CLIENTE']} | Producto: {r['CATEGORIA']} | Debe: ${r['SALDO_PENDIENTE']:,.2f}" for i, r in pendientes.iterrows()]
             recibo_sel = st.selectbox("🔍 Selecciona un apartado para ver su Recibo Detallado y abonar:", lista_recibos)
             
@@ -295,7 +293,6 @@ with tab_apartados:
                 idx_sel = int(recibo_sel.split(" ➔ ")[0].replace("Fila ", ""))
                 r_data = df_v.loc[idx_sel]
                 
-                # --- RECIBO VISUAL GRANDE Y LLAMATIVO ---
                 st.markdown(f"""
                     <div class="card-resibo">
                         <h2 style="color: #ff416c; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px;">🧾 RECIBO DE APARTADO - LOCAL MESITAS</h2>
@@ -311,7 +308,6 @@ with tab_apartados:
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # Formulario para dar abono directo al recibo seleccionado
                 with st.form(f"form_abono_{idx_sel}"):
                     st.markdown("#### 💸 Registrar nuevo abono a este recibo")
                     cant_abonar = st.number_input(f"¿Cuánto dinero trae {r_data['CLIENTE']} hoy? ($)", min_value=0.0, max_value=float(r_data['SALDO_PENDIENTE']), value=float(r_data['SALDO_PENDIENTE']), step=5.0)
@@ -389,5 +385,23 @@ with tab_historial:
             st.metric("💵 Total Dinero Recibido (Ventas + Abonos)", f"${total_caja:,.2f}")
             st.dataframe(df_h, use_container_width=True)
             
+            st.markdown("---")
+            st.markdown("#### 🗑️ Eliminar Registro Erróneo (Protegido)")
+            pass_del = st.text_input("Contraseña de Administrador para borrar", type="password", key="pass_del_reg")
+            
+            if pass_del == CLAVE_ADMIN:
+                lista_borrar = [f"Fila {i} | Fecha: {r['FECHA']} | Cliente: {r['CLIENTE']} | Total: ${r['TOTAL']}" for i, r in df_h.iterrows()]
+                reg_a_borrar = st.selectbox("Selecciona el registro que deseas eliminar", lista_borrar)
+                
+                if st.button("❌ BORRAR REGISTRO SELECCIONADO PERMANENTEMENTE"):
+                    idx_del = int(reg_a_borrar.split(" | ")[0].replace("Fila ", ""))
+                    df_h = df_h.drop(idx_del).reset_index(drop=True)
+                    df_h.to_csv(FILE_VENTAS, index=False)
+                    st.success("¡Registro eliminado correctamente!")
+                    st.rerun()
+            elif pass_del != "":
+                st.error("Clave incorrecta para borrar")
+            
+            st.markdown("---")
             if st.button("📥 Descargar Reporte CSV"):
                 st.download_button("Descargar", df_h.to_csv(index=False).encode('utf-8'), "reporte.csv", "text/csv")
