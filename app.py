@@ -736,22 +736,44 @@ with tab_inventario:
           df_inv.to_csv(FILE_INV, index=False)
           st.success("¡Actualizado!")
           st.rerun()
+
     with c2:
-      st.markdown("#### Añadir Producto Nuevo")
-      n_nom = st.text_input("Nombre del producto")
-      n_stk = st.number_input("Stock inicial", min_value=0, value=5)
-      n_prc = st.number_input("Precio ($)", min_value=0.0, value=50.0)
-      if st.button("Crear Producto"):
-        if n_nom.strip() != "":
+      st.markdown("#### Agregar Subproducto o Producto")
+      cat_base_opciones = (
+          df_inv["CATEGORIA"].tolist() if not df_inv.empty else []
+      )
+      cat_base_opciones.append("✨ [Crear Categoría Nueva]")
+
+      sel_cat_base = st.selectbox(
+          "Selecciona Categoría Principal o Nueva", cat_base_opciones
+      )
+
+      if sel_cat_base == "✨ [Crear Categoría Nueva]":
+        nombre_subprod = st.text_input(
+            "Nombre de la nueva categoría/producto"
+        )
+      else:
+        nombre_sub = st.text_input("Nombre del subproducto (Ej: De 3 plazas)")
+        nombre_subprod = (
+            f"{sel_cat_base} - {nombre_sub}" if nombre_sub else sel_cat_base
+        )
+
+      n_stk = st.number_input("Stock inicial", min_value=0, value=5, key="ns_stk")
+      n_prc = st.number_input(
+          "Precio ($)", min_value=0.0, value=50.0, key="ns_prc"
+      )
+
+      if st.button("Crear Subproducto / Producto"):
+        if nombre_subprod.strip() != "":
           nuevo_reg = pd.DataFrame([{
-              "CATEGORIA": n_nom.capitalize(),
+              "CATEGORIA": nombre_subprod.strip(),
               "STOCK": n_stk,
               "PRECIO": n_prc,
           }])
           pd.concat([df_inv, nuevo_reg], ignore_index=True).to_csv(
               FILE_INV, index=False
           )
-          st.success("¡Creado!")
+          st.success("¡Subproducto creado con éxito!")
           st.rerun()
 
     st.markdown("---")
