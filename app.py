@@ -97,20 +97,20 @@ if not st.session_state["autenticado"]:
                 st.error("❌ Clave incorrecta")
     st.stop()
 
-# --- CARGAR O CREAR INVENTARIO ---
+# --- CARGAR O CREAR INVENTARIO (CON TUS 3 TIPOS DE CAMAS Y PRECIOS) ---
 if os.path.exists(FILE_INV):
     df_inv = pd.read_csv(FILE_INV)
     if "PRECIO" not in df_inv.columns:
         df_inv["PRECIO"] = 0.0
 else:
     df_inv = pd.DataFrame([
-        {"CATEGORIA": "Cama Tapizada", "STOCK": 0, "PRECIO": 150.0},
-        {"CATEGORIA": "Cama de Madera", "STOCK": 0, "PRECIO": 140.0},
-        {"CATEGORIA": "Cama Mixta", "STOCK": 0, "PRECIO": 145.0},
-        {"CATEGORIA": "Colchones", "STOCK": 0, "PRECIO": 0.0},
-        {"CATEGORIA": "Armarios Grandes", "STOCK": 0, "PRECIO": 0.0},
-        {"CATEGORIA": "Armarios Pequeños", "STOCK": 0, "PRECIO": 0.0},
-        {"CATEGORIA": "Pajaritas", "STOCK": 0, "PRECIO": 0.0}
+        {"CATEGORIA": "Cama Tapizada", "STOCK": 5, "PRECIO": 150.0},
+        {"CATEGORIA": "Cama de Madera", "STOCK": 5, "PRECIO": 140.0},
+        {"CATEGORIA": "Cama Mixta", "STOCK": 5, "PRECIO": 145.0},
+        {"CATEGORIA": "Colchones", "STOCK": 5, "PRECIO": 100.0},
+        {"CATEGORIA": "Armarios Grandes", "STOCK": 3, "PRECIO": 200.0},
+        {"CATEGORIA": "Armarios Pequeños", "STOCK": 3, "PRECIO": 120.0},
+        {"CATEGORIA": "Pajaritas", "STOCK": 10, "PRECIO": 15.0}
     ])
     df_inv.to_csv(FILE_INV, index=False)
 
@@ -136,7 +136,7 @@ else:
     ])
     df_ventas.to_csv(FILE_VENTAS, index=False)
 
-# --- ESTILOS VISUALES AMPLIADOS Y MÁS GRANDES ---
+# --- ESTILOS VISUALES ---
 st.markdown("""
     <style>
     .stApp { background-color: #f8fafc; font-family: 'Inter', 'Segoe UI', Roboto, sans-serif; font-size: 18px; }
@@ -164,7 +164,6 @@ st.markdown("""
         border-bottom: 1px solid #f1f5f9;
     }
 
-    /* 🟢 BOTONES MÁS GRANDES Y CÓMODOS */
     .stButton>button {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
         color: white;
@@ -182,7 +181,6 @@ st.markdown("""
         box-shadow: 0 8px 22px rgba(37, 99, 235, 0.5);
     }
 
-    /* 🔤 TAMAÑO DE LETRA EN PESTAÑAS Y CAMPOS */
     div[data-baseweb="tab-list"] { gap: 12px; background-color: #e2e8f0; padding: 10px; border-radius: 18px; }
     div[data-baseweb="tab"] { border-radius: 14px; font-weight: 700; font-size: 18px !important; color: #334155; padding: 12px 24px !important; }
     
@@ -245,7 +243,6 @@ with tab_ops:
             cant = c1.number_input("Cantidad", min_value=1, value=1, step=1)
             pago = c2.selectbox("Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
             
-            # 🏷️ CAMPO DE DESCUENTO (Límite $10)
             descuento = st.number_input("Descuento ($)", min_value=0.0, value=0.0, step=1.0)
             
             if descuento > 10.0:
