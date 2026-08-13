@@ -2,14 +2,14 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
-# Configuración de diseño de la página
+# Configuración de página
 st.set_page_config(
     page_title="CAMAS - Control de Inventario",
     page_icon="🛏️",
     layout="wide"
 )
 
-# Estilos CSS personalizados para mejorar la apariencia
+# Estilos visuales
 st.markdown("""
     <style>
     .main { padding: 1rem 2rem; }
@@ -24,11 +24,11 @@ st.title("🛏️ Sistema de Inventario y Ventas - CAMAS")
 conn = st.connection("gsheets", type=GSheetsConnection)
 df = conn.read(ttl=0)
 
-# Inicializar columnas si la hoja está vacía
+# Asegurar estructura limpia
 if df.empty or len(df.columns) < 4:
     df = pd.DataFrame(columns=["NOMBRE", "CATEGORIA", "PRECIO", "STOCK"])
 
-# Resumen de Métricas (Tarjetas de información rápida)
+# Resumen de Métricas principales
 col_m1, col_m2, col_m3 = st.columns(3)
 total_productos = len(df)
 total_stock = df["STOCK"].sum() if "STOCK" in df.columns and not df.empty else 0
@@ -38,21 +38,51 @@ col_m3.metric("Status", "🟢 En línea")
 
 st.markdown("---")
 
-# Organización por Pestañas
-tab_inv, tab_entrada, tab_venta = st.tabs(["📋 Inventario Actual", "📥 Registrar Entrada (Llegada)", "🛒 Registrar Venta (Salida)"])
+# Menú principal por Pestañas
+tab_inv, tab_entrada, tab_venta = st.tabs([
+    "📋 Ver Inventario por Categorías", 
+    "📥 Registrar Entrada (Llegada)", 
+    "🛒 Registrar Venta (Salida)"
+])
+
+# Lista fija de categorías solicitadas
+CATEGORIAS = ["Camas", "Colchones", "Armarios", "Pajaritas", "Otros"]
 
 # ---------------------------------------------------------
-# PESTAÑA 1: INVENTARIO ACTUAL
+# PESTAÑA 1: INVENTARIO ORGANIZADO POR CATEGORÍAS
 # ---------------------------------------------------------
 with tab_inv:
-    st.subheader("📦 Productos Registrados")
-    if df.empty:
-        st.info("Aún no hay productos ingresados.")
-    else:
-        st.dataframe(df, use_container_width=True)
+    st.subheader("📦 Inventario de Productos")
+    
+    # Sub-pestañas por cada categoría
+    subtab_todas, subtab_camas, subtab_colchones, subtab_armarios, subtab_pajaritas = st.tabs([
+        "🌐 Todos", "🛏️ Camas", "💤 Colchones", "🚪 Armarios", "🎀 Pajaritas"
+    ])
+    
+    with subtab_todas:
+        if df.empty:
+            st.info("Aún no hay productos registrados.")
+        else:
+            st.dataframe(df, use_container_width=True)
+            
+    with subtab_camas:
+        df_camas = df[df["CATEGORIA"].str.upper() == "CAMAS"] if not df.empty else pd.DataFrame()
+        st.dataframe(df_camas if not df_camas.empty else "No hay Camas registradas.", use_container_width=True)
+        
+    with subtab_colchones:
+        df_colchones = df[df["CATEGORIA"].str.upper() == "COLCHONES"] if not df.empty else pd.DataFrame()
+        st.dataframe(df_colchones if not df_colchones.empty else "No hay Colchones registrados.", use_container_width=True)
+        
+    with subtab_armarios:
+        df_armarios = df[df["CATEGORIA"].str.upper() == "ARMARIOS"] if not df.empty else pd.DataFrame()
+        st.dataframe(df_armarios if not df_armarios.empty else "No hay Armarios registrados.", use_container_width=True)
+        
+    with subtab_pajaritas:
+        df_pajaritas = df[df["CATEGORIA"].str.upper() == "PAJARITAS"] if not df.empty else pd.DataFrame()
+        st.dataframe(df_pajaritas if not df_pajaritas.empty else "No hay Pajaritas registradas.", use_container_width=True)
 
 # ---------------------------------------------------------
-# PESTAÑA 2: ENTRADA DE MERCANCÍA (Nuevos o Aumento de Stock)
+# PESTAÑA 2: ENTRADA DE MERCANCÍA
 # ---------------------------------------------------------
 with tab_entrada:
     st.subheader("📥 Registrar Entrada de Mercancía")
@@ -62,7 +92,7 @@ with tab_entrada:
     if opcion_entrada == "Agregar producto nuevo":
         with st.form(key="form_nuevo_prod"):
             nombre = st.text_input("Nombre del Producto")
-            categoria = st.selectbox("Categoría", ["Camas", "Colchones", "Almohadas", "Muebles", "Accesorios", "Otros"])
+            categoria = st.selectbox("Categoría", CATEGORIAS)
             precio = st.number_input("Precio ($)", min_value=0.0, step=0.50)
             stock = st.number_input("Cantidad Inicial", min_value=1, step=1)
             btn_guardar = st.form_submit_button("➕ Guardar Producto Nuevo")
@@ -74,7 +104,7 @@ with tab_entrada:
                     nuevo = pd.DataFrame([{"NOMBRE": nombre, "CATEGORIA": categoria, "PRECIO": precio, "STOCK": stock}])
                     df_actualizado = pd.concat([df, nuevo], ignore_index=True)
                     conn.update(data=df_actualizado)
-                    st.success(f"¡Producto '{nombre}' agregado exitosamente!")
+                    st.success(f"¡Producto '{nombre}' en la categoría '{categoria}' guardado con éxito!")
                     st.rerun()
 
     else:
@@ -93,7 +123,7 @@ with tab_entrada:
                     st.rerun()
 
 # ---------------------------------------------------------
-# PESTAÑA 3: REGISTRAR VENTA (Descontar del Stock)
+# PESTAÑA 3: REGISTRAR VENTA
 # ---------------------------------------------------------
 with tab_venta:
     st.subheader("🛒 Registrar Salida por Venta")
@@ -108,7 +138,7 @@ with tab_venta:
             if btn_vender:
                 stock_actual = df.loc[df["NOMBRE"] == prod_vender, "STOCK"].values[0]
                 if cant_vender > stock_actual:
-                    st.error(f"No hay suficiente stock. Stock disponible: {stock_actual}")
+                    st.error(f"No hay suficiente stock. Disponible: {stock_actual}")
                 else:
                     df.loc[df["NOMBRE"] == prod_vender, "STOCK"] -= cant_vender
                     conn.update(data=df)
