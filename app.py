@@ -112,21 +112,14 @@ if not st.session_state["autenticado"]:
         st.error("❌ Clave incorrecta")
   st.stop()
 
-# --- CARGAR O CREAR INVENTARIO (AQUÍ AGREGAS TU NUEVA OPCIÓN DE CAMA) ---
+# --- CARGAR O CREAR INVENTARIO ---
 if os.path.exists(FILE_INV):
   df_inv = pd.read_csv(FILE_INV)
   if "PRECIO" not in df_inv.columns:
     df_inv["PRECIO"] = 0.0
 else:
   df_inv = pd.DataFrame([
-      {"CATEGORIA": "Cama Tapizada", "STOCK": 5, "PRECIO": 150.0},
-      {"CATEGORIA": "Cama de Madera", "STOCK": 5, "PRECIO": 140.0},
-      {"CATEGORIA": "Cama Mixta", "STOCK": 5, "PRECIO": 145.0},
-      {
-          "CATEGORIA": "Cama King Size",
-          "STOCK": 5,
-          "PRECIO": 180.0,
-      },  # <-- Tu nueva opción agregada
+      {"CATEGORIA": "Camas", "STOCK": 10, "PRECIO": 150.0},
       {"CATEGORIA": "Colchones", "STOCK": 5, "PRECIO": 100.0},
       {"CATEGORIA": "Armarios Grandes", "STOCK": 3, "PRECIO": 200.0},
       {"CATEGORIA": "Armarios Pequeños", "STOCK": 3, "PRECIO": 120.0},
@@ -270,10 +263,7 @@ with tab_ops:
   else:
     cols = st.columns(len(df_inv) if len(df_inv) <= 6 else 6)
     iconos = {
-        "Cama Tapizada": "🛏️",
-        "Cama de Madera": "🪵",
-        "Cama Mixta": "🛏️",
-        "Cama King Size": "👑",  # <-- Icono para tu nueva opción
+        "Camas": "🛏️",
         "Colchones": "💤",
         "Armarios Grandes": "🚪",
         "Armarios Pequeños": "🚪",
@@ -290,36 +280,22 @@ with tab_ops:
 
     st.markdown("---")
 
-    # --- SECCIÓN PARA AGREGAR NUEVO PRODUCTO DINÁMICAMENTE ---
-    with st.expander("➕ Agregar nuevo producto / apartado manualmente"):
-      nuevo_prod_input = st.text_input("Nombre del producto nuevo:")
-      if st.button("Añadir producto a la lista"):
-        if nuevo_prod_input.strip() != "":
-          if (
-              nuevo_prod_input.strip().capitalize()
-              not in df_inv["CATEGORIA"].values
-          ):
-            nuevo_df_inv = pd.DataFrame([{
-                "CATEGORIA": nuevo_prod_input.strip().capitalize(),
-                "STOCK": 5,
-                "PRECIO": 50.0,
-            }])
-            pd.concat([df_inv, nuevo_df_inv], ignore_index=True).to_csv(
-                FILE_INV, index=False
-            )
-            st.success(
-                f"¡Producto '{nuevo_prod_input.strip().capitalize()}' agregado"
-                " con éxito!"
-            )
-            st.rerun()
-          else:
-            st.info("Ese producto ya existe en el inventario.")
-        else:
-          st.warning("Escribe el nombre del producto.")
-
     categoria_sel = st.selectbox(
         "Selecciona el Producto", df_inv["CATEGORIA"].tolist(), key="v_cat"
     )
+
+    # Selector condicional si elige Camas
+    categoria_final = categoria_sel
+    if "cama" in categoria_sel.lower():
+      opciones_camas = [
+          "Cama de 3 plazas tapizada",
+          "Cama de dos plazas tapizada",
+      ]
+      tipo_cama_sel = st.selectbox(
+          "🛏️ ¿Qué tipo de cama vas a vender?", opciones_camas, key="v_tipo_cama"
+      )
+      categoria_final = f"{categoria_sel} - {tipo_cama_sel}"
+
     row_sel = df_inv[df_inv["CATEGORIA"] == categoria_sel].iloc[0]
     stock_disp = int(row_sel["STOCK"])
     precio_unit = float(row_sel["PRECIO"])
@@ -336,7 +312,7 @@ with tab_ops:
       )
 
       if descuento > 10.0:
-        st.warning("No permitido no descuentes mucho")
+        st.warning("No permitido, no descuentes mucho")
 
       cliente = st.text_input("Nombre del Cliente", value="Cliente General")
 
@@ -391,7 +367,7 @@ with tab_ops:
 
           nueva = pd.DataFrame([{
               "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
-              "CATEGORIA": categoria_sel,
+              "CATEGORIA": categoria_final,
               "CANTIDAD": cant,
               "PRECIO_UNITARIO": precio_unit,
               "TOTAL": total,
@@ -412,7 +388,7 @@ with tab_ops:
 
           cuerpo_mail = (
               f"Nueva Venta Registrada:\n- Cliente: {cliente}\n- Producto:"
-              f" {cant}x {categoria_sel}\n- Descuento: ${descuento:,.2f}\n-"
+              f" {cant}x {categoria_final}\n- Descuento: ${descuento:,.2f}\n-"
               f" Total: ${total:,.2f}\n- Método: {pago}\n- Dirección:"
               f" {direccion}"
           )
@@ -427,7 +403,7 @@ with tab_ops:
               "mensaje": (
                   f"🚨 *NUEVA VENTA REGISTRADA* 🛏️\n\n👤 *Cliente*:"
                   f" {cliente}\n📞 *Tel*: {telefono if telefono else 'N/A'}\n📦"
-                  f" *Producto*: {cant}x {categoria_sel}\n🏷️ *Descuento*:"
+                  f" *Producto*: {cant}x {categoria_final}\n🏷️ *Descuento*:"
                   f" ${descuento:,.2f}\n💰 *Total*: ${total:,.2f}\n💳 *Pago*:"
                   f" {pago}\n📍 *Dirección*: {direccion}\n📅 *Fecha*:"
                   f" {datetime.now().strftime('%Y-%m-%d %H:%M')}"
@@ -467,10 +443,27 @@ with tab_apartados:
       expanded=True,
   ):
     if not df_inv.empty:
-      with st.form("form_nuevo_ap"):
-        ap_cat = st.selectbox("Producto a Apartar", df_inv["CATEGORIA"].tolist())
-        p_info = df_inv[df_inv["CATEGORIA"] == ap_cat].iloc[0]
+      ap_cat = st.selectbox(
+          "Producto a Apartar", df_inv["CATEGORIA"].tolist(), key="ap_cat_sel"
+      )
 
+      # Selector condicional para apartados si elige Camas
+      ap_categoria_final = ap_cat
+      if "cama" in ap_cat.lower():
+        opciones_camas_ap = [
+            "Cama de 3 plazas tapizada",
+            "Cama de dos plazas tapizada",
+        ]
+        tipo_cama_ap_sel = st.selectbox(
+            "🛏️ ¿Qué tipo de cama es el apartado?",
+            opciones_camas_ap,
+            key="ap_tipo_cama",
+        )
+        ap_categoria_final = f"{ap_cat} - {tipo_cama_ap_sel}"
+
+      p_info = df_inv[df_inv["CATEGORIA"] == ap_cat].iloc[0]
+
+      with st.form("form_nuevo_ap"):
         c_a1, c_a2 = st.columns(2)
         ap_cant = c_a1.number_input("Cantidad", min_value=1, value=1)
         ap_abono = c_a2.number_input(
@@ -526,7 +519,7 @@ with tab_apartados:
             )
             nuevo_ap = pd.DataFrame([{
                 "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "CATEGORIA": ap_cat,
+                "CATEGORIA": ap_categoria_final,
                 "CANTIDAD": ap_cant,
                 "PRECIO_UNITARIO": precio_p,
                 "TOTAL": tot_p,
@@ -555,7 +548,7 @@ with tab_apartados:
 
             cuerpo_mail = (
                 f"Nuevo Apartado:\nCliente: {ap_cliente}\nProducto: {ap_cant}x"
-                f" {ap_cat}\nTotal: ${tot_p:,.2f}\nAbono:"
+                f" {ap_categoria_final}\nTotal: ${tot_p:,.2f}\nAbono:"
                 f" ${ap_abono:,.2f}\nSaldo: ${saldo_p:,.2f}"
             )
             enviar_correo_venta(
@@ -569,9 +562,9 @@ with tab_apartados:
                 "mensaje": (
                     f"📦 *NUEVO APARTADO REGISTRADO* 🛏️\n\n👤 *Cliente*:"
                     f" {ap_cliente}\n📞 *Tel*: {ap_tel}\n📦 *Producto*:"
-                    f" {ap_cant}x {ap_cat}\n💰 *Total*: ${tot_p:,.2f}\n📥"
-                    f" *Abono*: ${ap_abono:,.2f}\n🔴 *Saldo Pendiente*:"
-                    f" ${saldo_p:,.2f}\n📌 *Estado*: {estado_ap}"
+                    f" {ap_cant}x {ap_categoria_final}\n💰 *Total*:"
+                    f" ${tot_p:,.2f}\n📥 *Abono*: ${ap_abono:,.2f}\n🔴 *Saldo"
+                    f" Pendiente*: ${saldo_p:,.2f}\n📌 *Estado*: {estado_ap}"
                 )
             }
             st.rerun()
@@ -668,7 +661,9 @@ with tab_apartados:
             if nuevo_saldo <= 0:
               df_v.loc[idx_sel, "ESTADO"] = "Pagado y Entregado"
               cant_entregar = int(r_data["CANTIDAD"])
-              c_prod = r_data["CATEGORIA"]
+              c_prod = r_data["CATEGORIA"].split(" - ")[
+                  0
+              ]  # Toma la categoría base para restar stock
 
               if c_prod in df_inv["CATEGORIA"].values:
                 df_inv.loc[df_inv["CATEGORIA"] == c_prod, "STOCK"] -= (
@@ -680,7 +675,7 @@ with tab_apartados:
                                 <div style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 35px; border-radius: 20px; text-align: center; color: white; margin: 15px 0;">
                                     <h1 style="margin:0; font-size: 30px;">🎉 ¡DEUDA SALDADA!</h1>
                                     <h3 style="margin:12px 0; font-size: 22px;">EL CLIENTE <b>{r_data['CLIENTE'].upper()}</b> TERMINÓ DE PAGAR.</h3>
-                                    <p style="font-size: 22px; margin:0;">📦 <b>ENTREGUE EL PRODUCTO:</b> {cant_entregar}x {c_prod}</p>
+                                    <p style="font-size: 22px; margin:0;">📦 <b>ENTREGUE EL PRODUCTO:</b> {cant_entregar}x {r_data['CATEGORIA']}</p>
                                 </div>
                             """
             else:
