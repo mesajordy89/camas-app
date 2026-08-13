@@ -112,7 +112,7 @@ if not st.session_state["autenticado"]:
         st.error("❌ Clave incorrecta")
   st.stop()
 
-# --- CARGAR O CREAR INVENTARIO (CON TUS 3 TIPOS DE CAMAS Y PRECIOS) ---
+# --- CARGAR O CREAR INVENTARIO (AQUÍ AGREGAS TU NUEVA OPCIÓN DE CAMA) ---
 if os.path.exists(FILE_INV):
   df_inv = pd.read_csv(FILE_INV)
   if "PRECIO" not in df_inv.columns:
@@ -122,6 +122,11 @@ else:
       {"CATEGORIA": "Cama Tapizada", "STOCK": 5, "PRECIO": 150.0},
       {"CATEGORIA": "Cama de Madera", "STOCK": 5, "PRECIO": 140.0},
       {"CATEGORIA": "Cama Mixta", "STOCK": 5, "PRECIO": 145.0},
+      {
+          "CATEGORIA": "Cama King Size",
+          "STOCK": 5,
+          "PRECIO": 180.0,
+      },  # <-- Tu nueva opción agregada
       {"CATEGORIA": "Colchones", "STOCK": 5, "PRECIO": 100.0},
       {"CATEGORIA": "Armarios Grandes", "STOCK": 3, "PRECIO": 200.0},
       {"CATEGORIA": "Armarios Pequeños", "STOCK": 3, "PRECIO": 120.0},
@@ -268,6 +273,7 @@ with tab_ops:
         "Cama Tapizada": "🛏️",
         "Cama de Madera": "🪵",
         "Cama Mixta": "🛏️",
+        "Cama King Size": "👑",  # <-- Icono para tu nueva opción
         "Colchones": "💤",
         "Armarios Grandes": "🚪",
         "Armarios Pequeños": "🚪",
