@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
+import smtplib
+from email.message import EmailMessage
+import urllib.parse
 
 # Configuración de página
 st.set_page_config(page_title="Local Mesitas - Sistema POS y Apartados", page_icon="🛏️", layout="wide")
@@ -9,13 +12,50 @@ st.set_page_config(page_title="Local Mesitas - Sistema POS y Apartados", page_ic
 CLAVE_ACCESO = "1234"
 CLAVE_ADMIN = "1234"
 
+# 📱 TUS DOS NÚMEROS DE WHATSAPP PERSONALES
+NUMERO_1 = "593990847819"
+NUMERO_2 = "593983576800"
+
 FILE_INV = "inventario.csv"
 FILE_VENTAS = "ventas.csv"
 CARPETA_FOTOS = "fotos_ventas"
 
-# Crear carpeta para guardar las fotos si no existe
 if not os.path.exists(CARPETA_FOTOS):
     os.makedirs(CARPETA_FOTOS)
+
+# --- FUNCIÓN PARA ENVIAR CORREO (Opcional) ---
+def enviar_correo_venta(destinatario, asunto, cuerpo, ruta_foto=None):
+    if not destinatario or "@" not in destinatario:
+        return
+    try:
+        remitente = st.secrets["EMAIL_USER"]
+        password = st.secrets["EMAIL_PASS"]
+    except:
+        return
+
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = asunto
+        msg['From'] = remitente
+        msg['To'] = destinatario
+        msg.set_content(cuerpo)
+
+        if ruta_foto and ruta_foto != "Sin foto" and os.path.exists(ruta_foto):
+            with open(ruta_foto, 'rb') as f:
+                file_data = f.read()
+                file_name = os.path.basename(ruta_foto)
+            msg.add_attachment(file_data, maintype='image', subtype='jpeg', filename=file_name)
+
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(remitente, password)
+            smtp.send_message(msg)
+    except Exception as e:
+        print(f"Error al enviar correo: {e}")
+
+# --- FUNCIÓN PARA GENERAR ENLACE DE WHATSAPP ---
+def generar_link_whatsapp(numero, mensaje):
+    texto_codificado = urllib.parse.quote(mensaje)
+    return f"https://wa.me/{numero}?text={texto_codificado}"
 
 # --- SISTEMA DE BLOQUEO CON CONTRASEÑA ---
 if "autenticado" not in st.session_state:
@@ -24,7 +64,7 @@ if "autenticado" not in st.session_state:
 if not st.session_state["autenticado"]:
     st.markdown("""
         <style>
-        .stApp { background: linear-gradient(135deg, #0f172a 1e%, #1e293b 100%); color: #f8fafc; }
+        .stApp { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #f8fafc; }
         .login-box {
             max-width: 420px;
             margin: 100px auto;
@@ -93,11 +133,10 @@ else:
     ])
     df_ventas.to_csv(FILE_VENTAS, index=False)
 
-# --- ESTILOS VISUALES MODERNOS Y LIMPIOS ---
+# --- ESTILOS VISUALES ---
 st.markdown("""
     <style>
     .stApp { background-color: #f8fafc; font-family: 'Inter', 'Segoe UI', Roboto, sans-serif; }
-    
     .header-box {
         background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
         padding: 35px;
@@ -108,7 +147,6 @@ st.markdown("""
         box-shadow: 0 15px 30px rgba(15, 23, 42, 0.15);
         border: 1px solid rgba(255, 255, 255, 0.08);
     }
-    
     .card-resibo {
         background: white;
         padding: 30px;
@@ -120,7 +158,6 @@ st.markdown("""
         border-right: 1px solid #f1f5f9;
         border-bottom: 1px solid #f1f5f9;
     }
-    
     .stButton>button {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
         color: white;
@@ -132,25 +169,12 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
         transition: all 0.2s ease;
     }
-    
     .stButton>button:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
-        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
     }
-    
-    div[data-baseweb="tab-list"] {
-        gap: 10px;
-        background-color: #e2e8f0;
-        padding: 6px;
-        border-radius: 16px;
-    }
-    
-    div[data-baseweb="tab"] {
-        border-radius: 12px;
-        font-weight: 600;
-        color: #475569;
-    }
+    div[data-baseweb="tab-list"] { gap: 10px; background-color: #e2e8f0; padding: 6px; border-radius: 16px; }
+    div[data-baseweb="tab"] { border-radius: 12px; font-weight: 600; color: #475569; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -163,11 +187,10 @@ with col_logout:
 st.markdown("""
     <div class="header-box">
         <h1 style="color:white; margin:0; font-size: 32px; font-weight: 800; letter-spacing: -0.5px;">🏪 LOCAL MESITAS</h1>
-        <p style="margin:10px 0 0 0; font-size: 17px; color: #94a3b8;">Sistema de Caja, Ventas, Apartados y Registro Fotográfico</p>
+        <p style="margin:10px 0 0 0; font-size: 17px; color: #94a3b8;">Sistema de POS, Apartados y Notificaciones</p>
     </div>
 """, unsafe_allow_html=True)
 
-# Alerta de stock bajo
 stock_critico = df_inv[df_inv["STOCK"] <= 2]
 if not stock_critico.empty:
     productos_bajos = ", ".join([f"**{row['CATEGORIA']}** ({row['STOCK']} ud.)" for _, row in stock_critico.iterrows()])
@@ -208,9 +231,9 @@ with tab_ops:
             
             cc1, cc2 = st.columns(2)
             celda = cc1.text_input("Cédula / RUC", value="S/N")
-            telefono = cc2.text_input("Teléfono", value="")
+            telefono = cc2.text_input("Teléfono del cliente (Opcional)", value="")
             
-            correo = st.text_input("Correo electrónico", value="")
+            correo = st.text_input("Correo electrónico del cliente", value="")
             direccion = st.text_input("Dirección de Entrega", value="")
             
             foto_subida = st.file_uploader("📸 Subir Foto de la Cama o Producto (Opcional)", type=["jpg", "png", "jpeg"])
@@ -218,7 +241,9 @@ with tab_ops:
             total = cant * precio_unit
             st.markdown(f"### Total a Cobrar: ${total:,.2f}")
             
-            if st.form_submit_button("💰 COBRAR Y GENERAR RECIBO DE VENTA"):
+            submitted_venta = st.form_submit_button("💰 COBRAR Y GENERAR RECIBO DE VENTA")
+            
+            if submitted_venta:
                 if cant > stock_disp:
                     st.error(f"❌ Stock insuficiente. Solo hay {stock_disp} unidades.")
                 else:
@@ -245,8 +270,36 @@ with tab_ops:
                         "ESTADO": "Pagado y Entregado", "FOTO": ruta_foto_guardada
                     }])
                     pd.concat([df_actual_v, nueva], ignore_index=True).to_csv(FILE_VENTAS, index=False)
-                    st.success("¡Venta procesada con éxito y foto guardada!")
+                    
+                    # Enviar correo si tiene
+                    cuerpo_mail = f"""Nueva Venta Registrada:\n- Cliente: {cliente}\n- Producto: {cant}x {categoria_sel}\n- Total: ${total:,.2f}\n- Método: {pago}\n- Dirección: {direccion}"""
+                    enviar_correo_venta(correo, f"🧾 Recibo de Compra - Local Mesitas", cuerpo_mail, ruta_foto_guardada)
+
+                    st.session_state["ultima_venta_ws"] = {
+                        "mensaje": f"🚨 *NUEVA VENTA REGISTRADA* 🛏️\n\n👤 *Cliente*: {cliente}\n📞 *Tel*: {telefono if telefono else 'N/A'}\n📦 *Producto*: {cant}x {categoria_sel}\n💰 *Total*: ${total:,.2f}\n💳 *Pago*: {pago}\n📍 *Dirección*: {direccion}\n📅 *Fecha*: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                    }
+                    st.success("¡Venta procesada con éxito!")
                     st.rerun()
+
+    # Mostrar botones de WhatsApp para ambos números personales
+    if "ultima_venta_ws" in st.session_state:
+        uv = st.session_state["ultima_venta_ws"]
+        link_ws_1 = generar_link_whatsapp(NUMERO_1, uv["mensaje"])
+        link_ws_2 = generar_link_whatsapp(NUMERO_2, uv["mensaje"])
+        
+        st.markdown(f"""
+            <div style="background: #f0fdf4; border: 2px solid #22c55e; padding: 20px; border-radius: 16px; text-align: center; margin-top: 20px;">
+                <h3 style="color: #15803d; margin-top:0;">📱 Notificaciones de WhatsApp Listas</h3>
+                <p>Haz clic en los botones para enviar el reporte a tus dos números personales:</p>
+                <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-top: 15px;">
+                    <a href="{link_ws_1}" target="_blank" style="background-color: #25d366; color: white; padding: 12px 20px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px; display: inline-block;">💬 Enviar a Número 1 (0990847819)</a>
+                    <a href="{link_ws_2}" target="_blank" style="background-color: #128c7e; color: white; padding: 12px 20px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 15px; display: inline-block;">💬 Enviar a Número 2 (0983576800)</a>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        if st.button("✖️ Ocultar notificación"):
+            del st.session_state["ultima_venta_ws"]
+            st.rerun()
 
 # ================= TAB 2: APARTADOS Y ABONOS =================
 with tab_apartados:
@@ -266,9 +319,9 @@ with tab_apartados:
                 
                 c_inf1, c_inf2 = st.columns(2)
                 ap_ced = c_inf1.text_input("Cédula / DNI")
-                ap_tel = c_inf2.text_input("Teléfono de contacto")
+                ap_tel = c_inf2.text_input("Teléfono del cliente")
                 
-                ap_corr = st.text_input("Correo electrónico")
+                ap_corr = st.text_input("Correo electrónico del cliente")
                 ap_dir = st.text_input("Dirección exacta")
                 
                 ap_foto = st.file_uploader("📸 Subir Foto de la Cama o Producto Apartado (Opcional)", type=["jpg", "png", "jpeg"], key="foto_ap")
@@ -294,13 +347,14 @@ with tab_apartados:
                         if "FOTO" not in df_actual_v.columns:
                             df_actual_v["FOTO"] = "Sin foto"
                             
+                        estado_ap = "Pagado y Entregado" if saldo_p <= 0 else "Apartado (Pendiente)"
                         nuevo_ap = pd.DataFrame([{
                             "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
                             "CATEGORIA": ap_cat, "CANTIDAD": ap_cant, "PRECIO_UNITARIO": precio_p,
                             "TOTAL": tot_p, "ABONADO": ap_abono, "SALDO_PENDIENTE": max(0.0, saldo_p),
                             "METODO_PAGO": "Efectivo", "CLIENTE": ap_cliente, "CEDULA": ap_ced,
                             "TELEFONO": ap_tel, "CORREO": ap_corr, "DIRECCION": ap_dir, 
-                            "ESTADO": "Pagado y Entregado" if saldo_p <= 0 else "Apartado (Pendiente)",
+                            "ESTADO": estado_ap,
                             "FOTO": ruta_foto_ap
                         }])
                         
@@ -312,6 +366,14 @@ with tab_apartados:
                             st.success(f"¡Apartado guardado correctamente para {ap_cliente}!")
                             
                         pd.concat([df_actual_v, nuevo_ap], ignore_index=True).to_csv(FILE_VENTAS, index=False)
+                        
+                        # Enviar correo si tiene
+                        cuerpo_mail = f"Nuevo Apartado:\nCliente: {ap_cliente}\nProducto: {ap_cant}x {ap_cat}\nTotal: ${tot_p:,.2f}\nAbono: ${ap_abono:,.2f}\nSaldo: ${saldo_p:,.2f}"
+                        enviar_correo_venta(ap_corr, f"🧾 Recibo de Apartado - Local Mesitas", cuerpo_mail, ruta_foto_ap)
+
+                        st.session_state["ultima_venta_ws"] = {
+                            "mensaje": f"📦 *NUEVO APARTADO REGISTRADO* 🛏️\n\n👤 *Cliente*: {ap_cliente}\n📞 *Tel*: {ap_tel}\n📦 *Producto*: {ap_cant}x {ap_cat}\n💰 *Total*: ${tot_p:,.2f}\n📥 *Abono*: ${ap_abono:,.2f}\n🔴 *Saldo Pendiente*: ${saldo_p:,.2f}\n📌 *Estado*: {estado_ap}"
+                        }
                         st.rerun()
 
     st.markdown("---")
@@ -399,6 +461,14 @@ with tab_apartados:
                             st.success(f"¡Abono registrado! Nuevo saldo pendiente: ${nuevo_saldo:,.2f}")
                             
                         df_v.to_csv(FILE_VENTAS, index=False)
+                        
+                        # Enviar correo si tiene
+                        cuerpo_mail = f"Abono registrado para {r_data['CLIENTE']}\nAbono: ${cant_abonar:,.2f}\nSaldo Pendiente: ${max(0.0, nuevo_saldo):,.2f}"
+                        enviar_correo_venta(r_data['CORREO'], f"🧾 Comprobante de Abono - Local Mesitas", cuerpo_mail, r_data['FOTO'])
+
+                        st.session_state["ultima_venta_ws"] = {
+                            "mensaje": f"💵 *NUEVO ABONO REGISTRADO* 🛏️\n\n👤 *Cliente*: {r_data['CLIENTE']}\n📥 *Abono recibido*: ${cant_abonar:,.2f}\n🔴 *Nuevo Saldo Pendiente*: ${max(0.0, nuevo_saldo):,.2f}\n📌 *Estado*: {df_v.loc[idx_sel, 'ESTADO']}"
+                        }
                         st.rerun()
 
 # ================= TAB 3: INVENTARIO =================
@@ -445,7 +515,6 @@ with tab_historial:
             st.metric("💵 Total Dinero Recibido (Ventas + Abonos)", f"${total_caja:,.2f}")
             st.dataframe(df_h, use_container_width=True)
             
-            # Visor rápido de foto en historial seleccionando la fila
             st.markdown("---")
             st.markdown("#### 🔍 Ver Foto de un Registro del Historial")
             lista_hist = [f"Fila {i} | Fecha: {r['FECHA']} | Cliente: {r['CLIENTE']} | Prod: {r['CATEGORIA']}" for i, r in df_h.iterrows()]
@@ -468,7 +537,6 @@ with tab_historial:
                 
                 if st.button("❌ BORRAR REGISTRO SELECCIONADO PERMANENTEMENTE"):
                     idx_del = int(reg_a_borrar.split(" | ")[0].replace("Fila ", ""))
-                    # Borrar archivo de foto asociado si existe
                     foto_a_borrar = str(df_h.loc[idx_del].get("FOTO", "Sin foto"))
                     if foto_a_borrar != "Sin foto" and os.path.exists(foto_a_borrar):
                         try:
