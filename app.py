@@ -3,6 +3,7 @@ from email.message import EmailMessage
 import mimetypes
 import os
 import smtplib
+import textwrap
 import urllib.parse
 
 import pandas as pd
@@ -11,7 +12,7 @@ import streamlit as st
 
 # ============================================================
 #                 LOCAL MESITAS - SISTEMA POS
-#          Versión sencilla, visual y fácil de usar
+#        VERSIÓN CORREGIDA - PRODUCTOS Y SUBPRODUCTOS
 # ============================================================
 
 st.set_page_config(
@@ -58,20 +59,46 @@ COLUMNAS_VENTAS = [
 
 
 # ============================================================
+#                 FUNCIÓN PARA HTML
+# ============================================================
+
+def html(contenido):
+    """
+    Permite utilizar HTML correctamente en Streamlit
+    eliminando espacios de indentación innecesarios.
+    """
+    return st.markdown(
+        textwrap.dedent(contenido).strip(),
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
 #                 FUNCIONES DE DATOS
 # ============================================================
 
 def guardar_csv(df, ruta):
-    """Guarda el DataFrame en CSV."""
-    df.to_csv(ruta, index=False)
+    """Guarda un DataFrame en CSV."""
+    df.to_csv(
+        ruta,
+        index=False,
+        encoding="utf-8-sig",
+    )
 
 
 def normalizar_inventario(df):
     """
-    Mantiene el archivo compatible con el sistema actual.
+    Normaliza el inventario.
+
     Cada fila representa un producto o subproducto.
-    Cada fila puede tener su propio stock y su propio precio.
+
+    Ejemplo:
+
+    Camas
+    Camas - Cama de 3 plazas
+    Camas - Cama de 2 plazas
     """
+
     if "CATEGORIA" not in df.columns:
         df["CATEGORIA"] = ""
 
@@ -89,55 +116,77 @@ def normalizar_inventario(df):
     )
 
     df["STOCK"] = pd.to_numeric(
-        df["STOCK"], errors="coerce"
+        df["STOCK"],
+        errors="coerce",
     ).fillna(0).astype(int)
 
-    # Nunca permitir stock negativo.
-    df["STOCK"] = df["STOCK"].clip(lower=0)
+    df["STOCK"] = df["STOCK"].clip(
+        lower=0
+    )
 
     df["PRECIO"] = pd.to_numeric(
-        df["PRECIO"], errors="coerce"
+        df["PRECIO"],
+        errors="coerce",
     ).fillna(0.0)
 
-    # Nunca permitir precios negativos.
-    df["PRECIO"] = df["PRECIO"].clip(lower=0)
+    df["PRECIO"] = df["PRECIO"].clip(
+        lower=0
+    )
 
-    df = df[df["CATEGORIA"] != ""].reset_index(drop=True)
+    df = df[
+        df["CATEGORIA"] != ""
+    ].reset_index(drop=True)
 
-    return df[["CATEGORIA", "STOCK", "PRECIO"]]
+    return df[
+        [
+            "CATEGORIA",
+            "STOCK",
+            "PRECIO",
+        ]
+    ]
 
 
 def normalizar_ventas(df):
-    """Asegura las columnas necesarias de ventas."""
+    """Asegura que existan todas las columnas de ventas."""
+
     for columna in COLUMNAS_VENTAS:
 
         if columna in df.columns:
             continue
 
         if columna == "ABONADO":
+
             if "TOTAL" in df.columns:
+
                 df[columna] = pd.to_numeric(
-                    df["TOTAL"], errors="coerce"
+                    df["TOTAL"],
+                    errors="coerce",
                 ).fillna(0.0)
+
             else:
+
                 df[columna] = 0.0
 
         elif columna == "SALDO_PENDIENTE":
+
             df[columna] = 0.0
 
         elif columna == "ESTADO":
+
             df[columna] = "Pagado y Entregado"
 
         elif columna == "DIRECCION":
+
             df[columna] = "S/N"
 
         elif columna == "FOTO":
+
             df[columna] = "Sin foto"
 
         else:
+
             df[columna] = ""
 
-    # Valores numéricos seguros.
     for columna in [
         "CANTIDAD",
         "PRECIO_UNITARIO",
@@ -145,8 +194,10 @@ def normalizar_ventas(df):
         "ABONADO",
         "SALDO_PENDIENTE",
     ]:
+
         df[columna] = pd.to_numeric(
-            df[columna], errors="coerce"
+            df[columna],
+            errors="coerce",
         ).fillna(0.0)
 
     df["CANTIDAD"] = (
@@ -161,9 +212,11 @@ def normalizar_ventas(df):
         "ABONADO",
         "SALDO_PENDIENTE",
     ]:
-        df[columna] = df[columna].clip(lower=0)
 
-    # Textos seguros.
+        df[columna] = df[columna].clip(
+            lower=0
+        )
+
     for columna in [
         "FECHA",
         "CATEGORIA",
@@ -176,22 +229,35 @@ def normalizar_ventas(df):
         "ESTADO",
         "FOTO",
     ]:
+
         df[columna] = (
             df[columna]
             .fillna("")
             .astype(str)
         )
 
-    return df[COLUMNAS_VENTAS]
+    return df[
+        COLUMNAS_VENTAS
+    ]
 
 
 def cargar_inventario():
+
     if os.path.exists(FILE_INV):
+
         try:
-            df = pd.read_csv(FILE_INV)
+
+            df = pd.read_csv(
+                FILE_INV,
+                encoding="utf-8-sig",
+            )
+
         except Exception:
+
             df = pd.DataFrame()
+
     else:
+
         df = pd.DataFrame(
             [
                 {
@@ -223,27 +289,53 @@ def cargar_inventario():
         )
 
     df = normalizar_inventario(df)
-    guardar_csv(df, FILE_INV)
+
+    guardar_csv(
+        df,
+        FILE_INV,
+    )
 
     return df
 
 
 def cargar_ventas():
+
     if os.path.exists(FILE_VENTAS):
+
         try:
-            df = pd.read_csv(FILE_VENTAS)
+
+            df = pd.read_csv(
+                FILE_VENTAS,
+                encoding="utf-8-sig",
+            )
+
         except Exception:
+
             df = pd.DataFrame()
+
     else:
+
         df = pd.DataFrame()
 
     df = normalizar_ventas(df)
-    guardar_csv(df, FILE_VENTAS)
+
+    guardar_csv(
+        df,
+        FILE_VENTAS,
+    )
 
     return df
 
 
-def guardar_foto(archivo, prefijo=""):
+# ============================================================
+#                 FOTOS
+# ============================================================
+
+def guardar_foto(
+    archivo,
+    prefijo="",
+):
+
     if archivo is None:
         return "Sin foto"
 
@@ -253,20 +345,51 @@ def guardar_foto(archivo, prefijo=""):
         f"{os.path.basename(archivo.name)}"
     )
 
-    ruta = os.path.join(CARPETA_FOTOS, nombre)
+    ruta = os.path.join(
+        CARPETA_FOTOS,
+        nombre,
+    )
 
     try:
-        with open(ruta, "wb") as archivo_salida:
-            archivo_salida.write(archivo.getbuffer())
+
+        with open(
+            ruta,
+            "wb",
+        ) as archivo_salida:
+
+            archivo_salida.write(
+                archivo.getbuffer()
+            )
+
         return ruta
+
     except Exception:
+
         return "Sin foto"
 
 
-def generar_link_whatsapp(numero, mensaje):
-    texto = urllib.parse.quote(mensaje)
-    return f"https://wa.me/{numero}?text={texto}"
+# ============================================================
+#                 WHATSAPP
+# ============================================================
 
+def generar_link_whatsapp(
+    numero,
+    mensaje,
+):
+
+    texto = urllib.parse.quote(
+        mensaje
+    )
+
+    return (
+        f"https://wa.me/"
+        f"{numero}?text={texto}"
+    )
+
+
+# ============================================================
+#                 CORREO
+# ============================================================
 
 def enviar_correo_venta(
     destinatario,
@@ -274,56 +397,94 @@ def enviar_correo_venta(
     cuerpo,
     ruta_foto=None,
 ):
-    """Envía correo si EMAIL_USER y EMAIL_PASS existen en st.secrets."""
-    if not destinatario or "@" not in str(destinatario):
+
+    if (
+        not destinatario
+        or "@"
+        not in str(destinatario)
+    ):
         return
 
     try:
-        remitente = st.secrets["EMAIL_USER"]
-        password = st.secrets["EMAIL_PASS"]
+
+        remitente = st.secrets[
+            "EMAIL_USER"
+        ]
+
+        password = st.secrets[
+            "EMAIL_PASS"
+        ]
+
     except Exception:
+
         return
 
     try:
+
         mensaje = EmailMessage()
+
         mensaje["Subject"] = asunto
         mensaje["From"] = remitente
         mensaje["To"] = destinatario
-        mensaje.set_content(cuerpo)
+
+        mensaje.set_content(
+            cuerpo
+        )
 
         if (
             ruta_foto
             and ruta_foto != "Sin foto"
             and os.path.exists(ruta_foto)
         ):
-            with open(ruta_foto, "rb") as f:
+
+            with open(
+                ruta_foto,
+                "rb",
+            ) as f:
+
                 datos = f.read()
 
-            tipo_mime, _ = mimetypes.guess_type(ruta_foto)
+            tipo_mime, _ = (
+                mimetypes.guess_type(
+                    ruta_foto
+                )
+            )
 
             if not tipo_mime:
                 tipo_mime = "image/jpeg"
 
-            maintype, subtype = tipo_mime.split("/", 1)
+            maintype, subtype = (
+                tipo_mime.split(
+                    "/",
+                    1,
+                )
+            )
 
             mensaje.add_attachment(
                 datos,
                 maintype=maintype,
                 subtype=subtype,
-                filename=os.path.basename(ruta_foto),
+                filename=os.path.basename(
+                    ruta_foto
+                ),
             )
 
         with smtplib.SMTP_SSL(
             "smtp.gmail.com",
             465,
         ) as smtp:
+
             smtp.login(
                 remitente,
                 password,
             )
-            smtp.send_message(mensaje)
+
+            smtp.send_message(
+                mensaje
+            )
 
     except Exception as error:
+
         print(
             f"Error al enviar correo: {error}"
         )
@@ -334,12 +495,18 @@ def enviar_correo_venta(
 # ============================================================
 
 def obtener_icono(categoria):
-    texto = str(categoria).lower()
+
+    texto = str(
+        categoria
+    ).lower()
 
     if "cama" in texto:
         return "🛏️"
 
-    if "colchon" in texto or "colchón" in texto:
+    if (
+        "colchon" in texto
+        or "colchón" in texto
+    ):
         return "💤"
 
     if "armario" in texto:
@@ -352,19 +519,37 @@ def obtener_icono(categoria):
 
 
 def estado_stock(stock):
-    stock = max(0, int(stock))
+
+    stock = max(
+        0,
+        int(stock),
+    )
 
     if stock == 0:
-        return "🔴 AGOTADO", "#dc2626"
+        return (
+            "🔴 AGOTADO",
+            "#dc2626",
+        )
 
     if stock <= 2:
-        return "🟠 POCO STOCK", "#ea580c"
+        return (
+            "🟠 POCO STOCK",
+            "#ea580c",
+        )
 
-    return "🟢 DISPONIBLE", "#16a34a"
+    return (
+        "🟢 DISPONIBLE",
+        "#16a34a",
+    )
 
 
 def contar_apartados(df):
-    if df.empty or "ESTADO" not in df.columns:
+
+    if (
+        df.empty
+        or "ESTADO"
+        not in df.columns
+    ):
         return 0
 
     return int(
@@ -379,19 +564,105 @@ def contar_apartados(df):
     )
 
 
+# ============================================================
+#                 PRODUCTOS / SUBPRODUCTOS
+# ============================================================
+
+def es_subproducto(nombre):
+
+    return " - " in str(
+        nombre
+    )
+
+
 def base_producto(categoria):
-    """
-    Devuelve la categoría principal.
-    Ejemplo:
-    'Camas - Cama de 3 plazas' -> 'Camas'
-    """
-    return str(categoria).split(" - ")[0].strip()
+
+    return str(
+        categoria
+    ).split(
+        " - "
+    )[0].strip()
 
 
-def existe_subproducto(df, nombre):
+def obtener_subproductos(
+    df,
+    principal,
+):
+
+    prefijo = (
+        str(principal).strip()
+        + " - "
+    )
+
+    return df[
+        df["CATEGORIA"]
+        .astype(str)
+        .str.startswith(
+            prefijo,
+            na=False,
+        )
+    ].copy()
+
+
+def es_categoria_principal(
+    df,
+    nombre,
+):
+
+    nombre = str(
+        nombre
+    ).strip()
+
+    return not obtener_subproductos(
+        df,
+        nombre,
+    ).empty
+
+
+def producto_es_vendible(
+    df,
+    nombre,
+):
+
+    nombre = str(
+        nombre
+    ).strip()
+
+    if es_subproducto(
+        nombre
+    ):
+        return True
+
+    return not es_categoria_principal(
+        df,
+        nombre,
+    )
+
+
+def obtener_productos_vendibles(
+    df,
+):
+
+    return [
+        nombre
+        for nombre
+        in df["CATEGORIA"].tolist()
+        if producto_es_vendible(
+            df,
+            nombre,
+        )
+    ]
+
+
+def existe_producto(
+    df,
+    nombre,
+):
+
     return (
         nombre.strip().lower()
-        in df["CATEGORIA"]
+        in
+        df["CATEGORIA"]
         .astype(str)
         .str.strip()
         .str.lower()
@@ -400,82 +671,97 @@ def existe_subproducto(df, nombre):
 
 
 # ============================================================
-#                 SESIÓN / LOGIN
+#                 LOGIN
 # ============================================================
 
 if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = False
+
+    st.session_state[
+        "autenticado"
+    ] = False
 
 
-if not st.session_state["autenticado"]:
+if not st.session_state[
+    "autenticado"
+]:
 
-    st.markdown(
+    html(
         """
-<style>
-.stApp {
-    background:
-    linear-gradient(
-        135deg,
-        #0f172a 0%,
-        #1e293b 50%,
-        #334155 100%
-    );
-}
+        <style>
+        .stApp {
+            background:
+            linear-gradient(
+                135deg,
+                #0f172a 0%,
+                #1e293b 50%,
+                #334155 100%
+            );
+        }
 
-.login-box {
-    max-width: 520px;
-    margin: 80px auto 25px auto;
-    padding: 45px;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 30px;
-    text-align: center;
-    box-shadow: 0 25px 60px rgba(0,0,0,0.45);
-    backdrop-filter: blur(15px);
-}
+        .login-box {
+            max-width:520px;
+            margin:80px auto 25px auto;
+            padding:45px;
+            background:rgba(255,255,255,0.08);
+            border:1px solid rgba(255,255,255,0.15);
+            border-radius:30px;
+            text-align:center;
+            box-shadow:0 25px 60px rgba(0,0,0,0.45);
+            backdrop-filter:blur(15px);
+        }
 
-.login-title {
-    font-size: 42px;
-    color: white;
-    font-weight: 900;
-}
+        .login-title {
+            font-size:42px;
+            color:white;
+            font-weight:900;
+        }
 
-.login-subtitle {
-    font-size: 18px;
-    color: #cbd5e1;
-    margin-top: 8px;
-}
-</style>
-        """,
-        unsafe_allow_html=True,
+        .login-subtitle {
+            font-size:18px;
+            color:#cbd5e1;
+            margin-top:8px;
+        }
+        </style>
+        """
     )
 
-    st.markdown(
+    html(
         """
-<div class="login-box">
-    <div style="font-size:72px;">🛏️</div>
+        <div class="login-box">
 
-    <div class="login-title">
-        LOCAL MESITAS
-    </div>
+            <div style="font-size:72px;">
+                🛏️
+            </div>
 
-    <div class="login-subtitle">
-        Sistema de ventas y administración
-    </div>
+            <div class="login-title">
+                LOCAL MESITAS
+            </div>
 
-    <div style="font-size:48px;margin-top:25px;">
-        🔐
-    </div>
+            <div class="login-subtitle">
+                Sistema de ventas y administración
+            </div>
 
-    <div style="color:#94a3b8;font-size:16px;">
-        Escriba su contraseña y presione INGRESAR
-    </div>
-</div>
-        """,
-        unsafe_allow_html=True,
+            <div style="
+                font-size:48px;
+                margin-top:25px;
+            ">
+                🔐
+            </div>
+
+            <div style="
+                color:#94a3b8;
+                font-size:16px;
+            ">
+                Escriba su contraseña y presione INGRESAR
+            </div>
+
+        </div>
+        """
     )
 
-    c1, c2, c3 = st.columns([1, 2, 1])
+    c1, c2, c3 = st.columns(
+        [1, 2, 1]
+    )
 
     with c2:
 
@@ -492,7 +778,10 @@ if not st.session_state["autenticado"]:
 
             if clave == CLAVE_ACCESO:
 
-                st.session_state["autenticado"] = True
+                st.session_state[
+                    "autenticado"
+                ] = True
+
                 st.rerun()
 
             else:
@@ -516,139 +805,141 @@ df_ventas = cargar_ventas()
 #                 ESTILOS GENERALES
 # ============================================================
 
-st.markdown(
+html(
     """
-<style>
-.stApp {
-    background: #f1f5f9;
-    font-family:
-        'Segoe UI',
-        'Arial',
-        sans-serif;
-}
+    <style>
 
-/* Encabezado */
-.header-box {
-    background:
-    linear-gradient(
-        135deg,
-        #0f172a,
-        #1e3a8a
-    );
-    padding: 30px;
-    border-radius: 25px;
-    color: white;
-    text-align: center;
-    margin-bottom: 20px;
-    box-shadow:
-        0 12px 30px
-        rgba(15,23,42,0.18);
-}
+    .stApp {
+        background:#f1f5f9;
+        font-family:
+            'Segoe UI',
+            'Arial',
+            sans-serif;
+    }
 
-/* Tarjetas */
-.info-card {
-    background: white;
-    padding: 20px;
-    border-radius: 20px;
-    text-align: center;
-    border: 1px solid #e2e8f0;
-    box-shadow:
-        0 6px 18px
-        rgba(15,23,42,0.07);
-}
+    .header-box {
+        background:
+        linear-gradient(
+            135deg,
+            #0f172a,
+            #1e3a8a
+        );
 
-.product-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 22px;
-    padding: 20px 12px;
-    text-align: center;
-    min-height: 245px;
-    box-shadow:
-        0 8px 25px
-        rgba(15,23,42,0.08);
-}
+        padding:30px;
+        border-radius:25px;
+        color:white;
+        text-align:center;
+        margin-bottom:20px;
 
-.total-card {
-    background:
-    linear-gradient(
-        135deg,
-        #eff6ff,
-        #dbeafe
-    );
-    border: 2px solid #3b82f6;
-    border-radius: 22px;
-    padding: 24px;
-    text-align: center;
-}
+        box-shadow:
+            0 12px 30px
+            rgba(15,23,42,0.18);
+    }
 
-.receipt-card {
-    background: white;
-    padding: 26px;
-    border-radius: 22px;
-    border-left: 7px solid #2563eb;
-    box-shadow:
-        0 8px 25px
-        rgba(15,23,42,0.08);
-}
+    .info-card {
+        background:white;
+        padding:20px;
+        border-radius:20px;
+        text-align:center;
+        border:1px solid #e2e8f0;
 
-/* Botones grandes */
-.stButton > button {
-    border-radius: 14px;
-    min-height: 54px;
-    font-weight: 800;
-    font-size: 17px !important;
-}
+        box-shadow:
+            0 6px 18px
+            rgba(15,23,42,0.07);
+    }
 
-/* Inputs más cómodos */
-input,
-textarea,
-select {
-    border-radius: 12px !important;
-}
+    .product-card {
+        background:white;
+        border:1px solid #e2e8f0;
+        border-radius:22px;
+        padding:20px 12px;
+        text-align:center;
+        min-height:220px;
 
-/* Etiquetas grandes */
-.stSelectbox label,
-.stTextInput label,
-.stNumberInput label,
-.stFileUploader label,
-.stTextArea label {
-    font-size: 17px !important;
-    font-weight: 700 !important;
-}
+        box-shadow:
+            0 8px 25px
+            rgba(15,23,42,0.08);
 
-/* Tabs */
-div[data-baseweb="tab-list"] {
-    gap: 8px;
-    background: #e2e8f0;
-    padding: 8px;
-    border-radius: 16px;
-}
+        margin-bottom:15px;
+    }
 
-div[data-baseweb="tab"] {
-    border-radius: 12px;
-    font-weight: 800;
-    padding: 11px 18px !important;
-    font-size: 16px !important;
-}
+    .total-card {
+        background:
+        linear-gradient(
+            135deg,
+            #eff6ff,
+            #dbeafe
+        );
 
-/* Mensajes */
-div[data-testid="stAlert"] {
-    border-radius: 15px;
-}
+        border:2px solid #3b82f6;
+        border-radius:22px;
+        padding:24px;
+        text-align:center;
+    }
 
-/* Métricas */
-div[data-testid="stMetric"] {
-    background: white;
-    padding: 16px;
-    border-radius: 18px;
-    box-shadow:
-        0 5px 15px
-        rgba(0,0,0,0.06);
-}
-</style>
-    """,
-    unsafe_allow_html=True,
+    .receipt-card {
+        background:white;
+        padding:26px;
+        border-radius:22px;
+        border-left:7px solid #2563eb;
+
+        box-shadow:
+            0 8px 25px
+            rgba(15,23,42,0.08);
+    }
+
+    .stButton > button {
+        border-radius:14px;
+        min-height:54px;
+        font-weight:800;
+        font-size:17px !important;
+    }
+
+    input,
+    textarea,
+    select {
+        border-radius:12px !important;
+    }
+
+    .stSelectbox label,
+    .stTextInput label,
+    .stNumberInput label,
+    .stFileUploader label,
+    .stTextArea label {
+        font-size:17px !important;
+        font-weight:700 !important;
+    }
+
+    div[data-baseweb="tab-list"] {
+        gap:8px;
+        background:#e2e8f0;
+        padding:8px;
+        border-radius:16px;
+    }
+
+    div[data-baseweb="tab"] {
+        border-radius:12px;
+        font-weight:800;
+        padding:11px 18px !important;
+        font-size:16px !important;
+    }
+
+    div[data-testid="stAlert"] {
+        border-radius:15px;
+    }
+
+    div[data-testid="stMetric"] {
+        background:white;
+        padding:16px;
+        border-radius:18px;
+
+        box-shadow:
+            0 5px 15px
+            rgba(0,0,0,0.06);
+    }
+
+    </style>
+    """
 )
 
 
@@ -656,7 +947,9 @@ div[data-testid="stMetric"] {
 #                 ENCABEZADO
 # ============================================================
 
-col_titulo, col_salir = st.columns([6, 1])
+col_titulo, col_salir = st.columns(
+    [6, 1]
+)
 
 with col_salir:
 
@@ -665,146 +958,188 @@ with col_salir:
         use_container_width=True,
     ):
 
-        st.session_state["autenticado"] = False
+        st.session_state[
+            "autenticado"
+        ] = False
+
         st.rerun()
 
 
-st.markdown(
+html(
     """
-<div class="header-box">
+    <div class="header-box">
 
-    <div style="
-        font-size:44px;
-        font-weight:900;
-    ">
-        🛏️ LOCAL MESITAS
+        <div style="
+            font-size:44px;
+            font-weight:900;
+        ">
+            🛏️ LOCAL MESITAS
+        </div>
+
+        <div style="
+            font-size:19px;
+            color:#cbd5e1;
+            margin-top:7px;
+        ">
+            Sistema de Ventas • Apartados • Inventario • Caja
+        </div>
+
+        <div style="
+            font-size:15px;
+            color:#94a3b8;
+            margin-top:8px;
+        ">
+            💼 Todo en un solo lugar
+        </div>
+
     </div>
-
-    <div style="
-        font-size:19px;
-        color:#cbd5e1;
-        margin-top:7px;
-    ">
-        Sistema de Ventas • Apartados • Inventario • Caja
-    </div>
-
-    <div style="
-        font-size:15px;
-        color:#94a3b8;
-        margin-top:8px;
-    ">
-        💼 Todo en un solo lugar
-    </div>
-
-</div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
 # ============================================================
-#                 RESUMEN PRINCIPAL
+#                 RESUMEN
 # ============================================================
 
 dinero_recibido = (
-    float(df_ventas["ABONADO"].sum())
+    float(
+        df_ventas[
+            "ABONADO"
+        ].sum()
+    )
     if not df_ventas.empty
     else 0.0
 )
 
-total_operaciones = len(df_ventas)
+total_operaciones = len(
+    df_ventas
+)
 
 total_apartados = contar_apartados(
     df_ventas
 )
 
 total_stock = (
-    int(df_inv["STOCK"].sum())
+    int(
+        df_inv[
+            "STOCK"
+        ].sum()
+    )
     if not df_inv.empty
     else 0
 )
 
 
-r1, r2, r3, r4 = st.columns(4)
+r1, r2, r3, r4 = st.columns(
+    4
+)
 
 
 with r1:
-    st.markdown(
+
+    html(
         f"""
-<div class="info-card">
-<div style="font-size:15px;color:#64748b;font-weight:800;">
-💰 DINERO RECIBIDO
-</div>
-<div style="
-font-size:29px;
-font-weight:900;
-color:#0f172a;
-">
-${dinero_recibido:,.2f}
-</div>
-</div>
-        """,
-        unsafe_allow_html=True,
+        <div class="info-card">
+
+            <div style="
+                font-size:15px;
+                color:#64748b;
+                font-weight:800;
+            ">
+                💰 DINERO RECIBIDO
+            </div>
+
+            <div style="
+                font-size:29px;
+                font-weight:900;
+                color:#0f172a;
+            ">
+                ${dinero_recibido:,.2f}
+            </div>
+
+        </div>
+        """
     )
 
 
 with r2:
-    st.markdown(
+
+    html(
         f"""
-<div class="info-card">
-<div style="font-size:15px;color:#64748b;font-weight:800;">
-📦 PRODUCTOS EN STOCK
-</div>
-<div style="
-font-size:29px;
-font-weight:900;
-color:#0f172a;
-">
-{total_stock}
-</div>
-</div>
-        """,
-        unsafe_allow_html=True,
+        <div class="info-card">
+
+            <div style="
+                font-size:15px;
+                color:#64748b;
+                font-weight:800;
+            ">
+                📦 PRODUCTOS EN STOCK
+            </div>
+
+            <div style="
+                font-size:29px;
+                font-weight:900;
+                color:#0f172a;
+            ">
+                {total_stock}
+            </div>
+
+        </div>
+        """
     )
 
 
 with r3:
-    st.markdown(
+
+    html(
         f"""
-<div class="info-card">
-<div style="font-size:15px;color:#64748b;font-weight:800;">
-🧾 OPERACIONES
-</div>
-<div style="
-font-size:29px;
-font-weight:900;
-color:#0f172a;
-">
-{total_operaciones}
-</div>
-</div>
-        """,
-        unsafe_allow_html=True,
+        <div class="info-card">
+
+            <div style="
+                font-size:15px;
+                color:#64748b;
+                font-weight:800;
+            ">
+                🧾 OPERACIONES
+            </div>
+
+            <div style="
+                font-size:29px;
+                font-weight:900;
+                color:#0f172a;
+            ">
+                {total_operaciones}
+            </div>
+
+        </div>
+        """
     )
 
 
 with r4:
-    st.markdown(
+
+    html(
         f"""
-<div class="info-card">
-<div style="font-size:15px;color:#64748b;font-weight:800;">
-📦 APARTADOS ACTIVOS
-</div>
-<div style="
-font-size:29px;
-font-weight:900;
-color:#0f172a;
-">
-{total_apartados}
-</div>
-</div>
-        """,
-        unsafe_allow_html=True,
+        <div class="info-card">
+
+            <div style="
+                font-size:15px;
+                color:#64748b;
+                font-weight:800;
+            ">
+                📦 APARTADOS ACTIVOS
+            </div>
+
+            <div style="
+                font-size:29px;
+                font-weight:900;
+                color:#0f172a;
+            ">
+                {total_apartados}
+            </div>
+
+        </div>
+        """
     )
 
 
@@ -825,17 +1160,19 @@ if not stock_critico.empty:
         [
             f"{r['CATEGORIA']} "
             f"({int(r['STOCK'])} ud.)"
-            for _, r in stock_critico.iterrows()
+            for _, r
+            in stock_critico.iterrows()
         ]
     )
 
     st.warning(
-        f"⚠️ **REVISE EL STOCK:** {lista_criticos}"
+        f"⚠️ **REVISE EL STOCK:** "
+        f"{lista_criticos}"
     )
 
 
 # ============================================================
-#                 MENÚ PRINCIPAL
+#                 MENÚ
 # ============================================================
 
 tab_venta, tab_apartado, tab_inventario, tab_historial = st.tabs(
@@ -854,44 +1191,41 @@ tab_venta, tab_apartado, tab_inventario, tab_historial = st.tabs(
 
 with tab_venta:
 
-    st.markdown(
+    html(
         """
-<div style="
-background:
-linear-gradient(
-135deg,
-#ffffff,
-#eff6ff
-);
-padding:25px;
-border-radius:22px;
-border:1px solid #dbeafe;
-margin-bottom:20px;
-">
+        <div style="
+            background:
+            linear-gradient(
+                135deg,
+                #ffffff,
+                #eff6ff
+            );
 
-<div style="
-font-size:32px;
-font-weight:900;
-color:#0f172a;
-">
-⚡ VENDER PRODUCTO
-</div>
+            padding:25px;
+            border-radius:22px;
+            border:1px solid #dbeafe;
+            margin-bottom:20px;
+        ">
 
-<div style="
-font-size:16px;
-color:#64748b;
-margin-top:6px;
-">
-PASO 1: Elija el producto
-&nbsp;&nbsp; →
-PASO 2: Revise el precio
-&nbsp;&nbsp; →
-PASO 3: Registre la venta
-</div>
+            <div style="
+                font-size:32px;
+                font-weight:900;
+                color:#0f172a;
+            ">
+                ⚡ VENDER PRODUCTO
+            </div>
 
-</div>
-        """,
-        unsafe_allow_html=True,
+            <div style="
+                font-size:16px;
+                color:#64748b;
+                margin-top:6px;
+            ">
+                Elija el tipo de producto,
+                revise su precio y registre la venta.
+            </div>
+
+        </div>
+        """
     )
 
 
@@ -903,99 +1237,276 @@ PASO 3: Registre la venta
 
     else:
 
-        # ----------------------------------------------------
-        # PRODUCTOS
-        # ----------------------------------------------------
-
         st.markdown(
-            "### 📦 1. Elija el producto"
+            "### 📦 1. Productos disponibles"
         )
 
-        columnas = st.columns(
-            min(
-                max(len(df_inv), 1),
-                4,
+        # ----------------------------------------------------
+        # MOSTRAR CATEGORÍAS
+        # ----------------------------------------------------
+
+        categorias = [
+            nombre
+            for nombre
+            in df_inv["CATEGORIA"].tolist()
+            if " - " not in str(nombre)
+        ]
+
+        for principal in categorias:
+
+            subproductos = obtener_subproductos(
+                df_inv,
+                principal,
             )
-        )
 
-        for indice, fila in df_inv.iterrows():
+            # ------------------------------------------------
+            # CATEGORÍA CON SUBPRODUCTOS
+            # ------------------------------------------------
 
-            with columnas[
-                indice % len(columnas)
-            ]:
+            if not subproductos.empty:
 
-                stock = max(
-                    0,
-                    int(fila["STOCK"]),
-                )
-
-                precio = float(
-                    fila["PRECIO"]
-                )
-
-                estado, color = estado_stock(
-                    stock
-                )
-
-                icono = obtener_icono(
-                    fila["CATEGORIA"]
-                )
-
-                st.markdown(
+                html(
                     f"""
-<div class="product-card">
+                    <div class="product-card"
+                         style="min-height:165px;">
 
-<div style="
-font-size:52px;
-">
-{icono}
-</div>
+                        <div style="
+                            font-size:55px;
+                        ">
+                            {obtener_icono(principal)}
+                        </div>
 
-<div style="
-font-size:18px;
-font-weight:900;
-color:#0f172a;
-min-height:48px;
-">
-{fila["CATEGORIA"]}
-</div>
+                        <div style="
+                            font-size:27px;
+                            font-weight:900;
+                            color:#0f172a;
+                        ">
+                            {principal}
+                        </div>
 
-<div style="
-font-size:31px;
-font-weight:900;
-color:#1e3a8a;
-margin-top:8px;
-">
-{stock}
-<span style="
-font-size:14px;
-color:#64748b;
-">
-unidades
-</span>
-</div>
+                        <div style="
+                            font-size:18px;
+                            color:#64748b;
+                            margin-top:8px;
+                        ">
+                            {len(subproductos)}
+                            tipos disponibles
+                        </div>
 
-<div style="
-font-size:21px;
-font-weight:900;
-color:#0f172a;
-">
-${precio:,.2f}
-</div>
+                        <div style="
+                            font-size:14px;
+                            color:#2563eb;
+                            font-weight:900;
+                            margin-top:7px;
+                        ">
+                            👇 Cada tipo tiene su propio precio
+                        </div>
 
-<div style="
-font-size:13px;
-font-weight:900;
-color:{color};
-margin-top:10px;
-">
-{estado}
-</div>
-
-</div>
-                    """,
-                    unsafe_allow_html=True,
+                    </div>
+                    """
                 )
+
+                columnas = st.columns(
+                    min(
+                        max(
+                            len(subproductos),
+                            1,
+                        ),
+                        4,
+                    )
+                )
+
+                for indice_sub, (
+                    _,
+                    sub,
+                ) in enumerate(
+                    subproductos.iterrows()
+                ):
+
+                    with columnas[
+                        indice_sub
+                        % len(columnas)
+                    ]:
+
+                        stock_sub = max(
+                            0,
+                            int(
+                                sub[
+                                    "STOCK"
+                                ]
+                            ),
+                        )
+
+                        precio_sub = float(
+                            sub[
+                                "PRECIO"
+                            ]
+                        )
+
+                        estado_sub, color_sub = (
+                            estado_stock(
+                                stock_sub
+                            )
+                        )
+
+                        nombre_completo = str(
+                            sub[
+                                "CATEGORIA"
+                            ]
+                        )
+
+                        nombre_mostrar = (
+                            nombre_completo
+                            .replace(
+                                principal
+                                + " - ",
+                                "",
+                                1,
+                            )
+                        )
+
+                        html(
+                            f"""
+                            <div class="product-card">
+
+                                <div style="
+                                    font-size:45px;
+                                ">
+                                    {obtener_icono(
+                                        nombre_completo
+                                    )}
+                                </div>
+
+                                <div style="
+                                    font-size:18px;
+                                    font-weight:900;
+                                    color:#0f172a;
+                                    min-height:45px;
+                                ">
+                                    {nombre_mostrar}
+                                </div>
+
+                                <div style="
+                                    font-size:28px;
+                                    font-weight:900;
+                                    color:#1e3a8a;
+                                    margin-top:8px;
+                                ">
+                                    ${precio_sub:,.2f}
+                                </div>
+
+                                <div style="
+                                    font-size:15px;
+                                    color:#64748b;
+                                    margin-top:5px;
+                                ">
+                                    📦 {stock_sub}
+                                    unidades
+                                </div>
+
+                                <div style="
+                                    font-size:13px;
+                                    font-weight:900;
+                                    color:{color_sub};
+                                    margin-top:8px;
+                                ">
+                                    {estado_sub}
+                                </div>
+
+                            </div>
+                            """
+                        )
+
+            # ------------------------------------------------
+            # PRODUCTO NORMAL
+            # ------------------------------------------------
+
+            else:
+
+                fila_normal = df_inv[
+                    df_inv[
+                        "CATEGORIA"
+                    ]
+                    == principal
+                ]
+
+                if not fila_normal.empty:
+
+                    fila_normal = (
+                        fila_normal.iloc[0]
+                    )
+
+                    stock = max(
+                        0,
+                        int(
+                            fila_normal[
+                                "STOCK"
+                            ]
+                        ),
+                    )
+
+                    precio = float(
+                        fila_normal[
+                            "PRECIO"
+                        ]
+                    )
+
+                    estado, color = (
+                        estado_stock(
+                            stock
+                        )
+                    )
+
+                    html(
+                        f"""
+                        <div class="product-card"
+                             style="max-width:320px;">
+
+                            <div style="
+                                font-size:55px;
+                            ">
+                                {obtener_icono(
+                                    principal
+                                )}
+                            </div>
+
+                            <div style="
+                                font-size:20px;
+                                font-weight:900;
+                                color:#0f172a;
+                            ">
+                                {principal}
+                            </div>
+
+                            <div style="
+                                font-size:29px;
+                                font-weight:900;
+                                color:#1e3a8a;
+                                margin-top:8px;
+                            ">
+                                ${precio:,.2f}
+                            </div>
+
+                            <div style="
+                                font-size:16px;
+                                color:#64748b;
+                            ">
+                                📦 {stock} unidades
+                            </div>
+
+                            <div style="
+                                font-size:13px;
+                                font-weight:900;
+                                color:{color};
+                                margin-top:8px;
+                            ">
+                                {estado}
+                            </div>
+
+                        </div>
+                        """
+                    )
+
 
         st.markdown("---")
 
@@ -1003,381 +1514,457 @@ margin-top:10px;
         # SELECCIONAR PRODUCTO
         # ----------------------------------------------------
 
-        lista_productos = df_inv[
-            "CATEGORIA"
-        ].tolist()
-
-        producto_elegido = st.selectbox(
-            "👉 Producto que desea vender",
-            lista_productos,
-            key="venta_producto_final",
+        lista_productos = (
+            obtener_productos_vendibles(
+                df_inv
+            )
         )
 
-        fila_producto = df_inv[
-            df_inv["CATEGORIA"]
-            == producto_elegido
-        ].iloc[0]
+        if not lista_productos:
 
-        stock_disponible = max(
-            0,
-            int(
-                fila_producto["STOCK"]
-            ),
-        )
-
-        precio_producto = float(
-            fila_producto["PRECIO"]
-        )
-
-        st.markdown(
-            f"""
-<div style="
-background:white;
-border:2px solid #cbd5e1;
-border-radius:18px;
-padding:18px;
-margin:10px 0 20px 0;
-">
-
-<div style="
-font-size:22px;
-font-weight:900;
-">
-{obtener_icono(producto_elegido)}
-&nbsp;
-{producto_elegido}
-</div>
-
-<div style="
-font-size:18px;
-margin-top:8px;
-">
-💰 Precio de venta:
-<b>${precio_producto:,.2f}</b>
-</div>
-
-<div style="
-font-size:18px;
-margin-top:5px;
-">
-📦 Existencia:
-<b>{stock_disponible} unidades</b>
-</div>
-
-</div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        # ----------------------------------------------------
-        # PRODUCTO AGOTADO
-        # ----------------------------------------------------
-
-        if stock_disponible <= 0:
-
-            st.error(
-                f"🔴 **{producto_elegido} está agotado.** "
-                "Entre a INVENTARIO para agregar existencias."
+            st.info(
+                "📦 No hay productos vendibles."
             )
 
         else:
 
-            # ------------------------------------------------
-            # FORMULARIO
-            # ------------------------------------------------
+            producto_elegido = (
+                st.selectbox(
+                    "👉 Producto que desea vender",
+                    lista_productos,
+                    key="venta_producto_final",
+                )
+            )
 
-            with st.form(
-                "form_venta_principal"
-            ):
+            fila_producto = df_inv[
+                df_inv[
+                    "CATEGORIA"
+                ]
+                == producto_elegido
+            ].iloc[0]
 
-                st.markdown(
-                    "### 🧾 2. Datos de la venta"
+            stock_disponible = max(
+                0,
+                int(
+                    fila_producto[
+                        "STOCK"
+                    ]
+                ),
+            )
+
+            precio_producto = float(
+                fila_producto[
+                    "PRECIO"
+                ]
+            )
+
+            nombre_producto_visible = (
+                producto_elegido
+            )
+
+            if " - " in producto_elegido:
+
+                nombre_producto_visible = (
+                    producto_elegido.split(
+                        " - ",
+                        1,
+                    )[1]
                 )
 
-                a1, a2, a3 = st.columns(3)
+            html(
+                f"""
+                <div style="
+                    background:white;
+                    border:2px solid #cbd5e1;
+                    border-radius:18px;
+                    padding:18px;
+                    margin:10px 0 20px 0;
+                ">
 
-                with a1:
+                    <div style="
+                        font-size:24px;
+                        font-weight:900;
+                    ">
+                        {obtener_icono(
+                            producto_elegido
+                        )}
+                        {nombre_producto_visible}
+                    </div>
 
-                    cantidad = st.number_input(
-                        "🔢 Cantidad",
-                        min_value=1,
-                        max_value=stock_disponible,
-                        value=1,
-                        step=1,
+                    <div style="
+                        font-size:18px;
+                        margin-top:8px;
+                    ">
+                        💰 Precio de venta:
+                        <b>
+                            ${precio_producto:,.2f}
+                        </b>
+                    </div>
+
+                    <div style="
+                        font-size:18px;
+                        margin-top:5px;
+                    ">
+                        📦 Existencia:
+                        <b>
+                            {stock_disponible}
+                            unidades
+                        </b>
+                    </div>
+
+                </div>
+                """
+            )
+
+
+            if stock_disponible <= 0:
+
+                st.error(
+                    f"🔴 **{nombre_producto_visible} "
+                    "está agotado.** "
+                    "Entre a INVENTARIO para agregar existencias."
+                )
+
+            else:
+
+                with st.form(
+                    "form_venta_principal"
+                ):
+
+                    st.markdown(
+                        "### 🧾 2. Datos de la venta"
                     )
 
-                with a2:
-
-                    metodo_pago = st.selectbox(
-                        "💳 Forma de pago",
-                        [
-                            "Efectivo",
-                            "Transferencia",
-                            "Tarjeta",
-                        ],
+                    a1, a2, a3 = (
+                        st.columns(3)
                     )
 
-                with a3:
+                    with a1:
 
-                    descuento = st.number_input(
-                        "🏷️ Descuento",
-                        min_value=0.0,
-                        max_value=10.0,
-                        value=0.0,
-                        step=1.0,
-                    )
-
-                st.markdown(
-                    "### 👤 3. Datos del cliente"
-                )
-
-                nombre_cliente = st.text_input(
-                    "👤 Nombre",
-                    value="Cliente General",
-                )
-
-                b1, b2 = st.columns(2)
-
-                with b1:
-
-                    cedula_cliente = st.text_input(
-                        "🆔 Cédula / RUC",
-                        value="S/N",
-                    )
-
-                with b2:
-
-                    telefono_cliente = st.text_input(
-                        "📞 Teléfono",
-                        value="",
-                    )
-
-                correo_cliente = st.text_input(
-                    "📧 Correo electrónico",
-                    value="",
-                )
-
-                direccion_cliente = st.text_input(
-                    "📍 Dirección de entrega",
-                    value="",
-                )
-
-                foto_venta = st.file_uploader(
-                    "📸 Foto del producto (opcional)",
-                    type=[
-                        "jpg",
-                        "jpeg",
-                        "png",
-                    ],
-                    key="foto_venta_principal",
-                )
-
-                subtotal = (
-                    cantidad
-                    * precio_producto
-                )
-
-                total = max(
-                    0.0,
-                    subtotal - descuento,
-                )
-
-                st.markdown(
-                    f"""
-<div class="total-card">
-
-<div style="
-font-size:15px;
-color:#64748b;
-font-weight:900;
-">
-✅ 4. TOTAL DE LA VENTA
-</div>
-
-<div style="
-font-size:20px;
-font-weight:900;
-margin:8px 0;
-">
-{cantidad} × {producto_elegido}
-</div>
-
-<div style="
-color:#475569;
-">
-Subtotal:
-<b>${subtotal:,.2f}</b>
-</div>
-
-<div style="
-color:#dc2626;
-">
-Descuento:
-<b>-${descuento:,.2f}</b>
-</div>
-
-<div style="
-font-size:44px;
-font-weight:900;
-color:#1d4ed8;
-margin-top:7px;
-">
-${total:,.2f}
-</div>
-
-</div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                st.write("")
-
-                confirmar_venta = st.form_submit_button(
-                    "💰 COBRAR Y GUARDAR VENTA",
-                    use_container_width=True,
-                )
-
-                if confirmar_venta:
-
-                    if not nombre_cliente.strip():
-
-                        st.warning(
-                            "⚠️ Escriba el nombre del cliente."
-                        )
-
-                    elif cantidad > stock_disponible:
-
-                        st.error(
-                            "❌ No hay suficiente stock."
-                        )
-
-                    else:
-
-                        ruta_foto = guardar_foto(
-                            foto_venta
-                        )
-
-                        indice_producto = df_inv[
-                            df_inv["CATEGORIA"]
-                            == producto_elegido
-                        ].index[0]
-
-                        nuevo_stock = max(
-                            0,
-                            int(
-                                df_inv.loc[
-                                    indice_producto,
-                                    "STOCK",
-                                ]
+                        cantidad = (
+                            st.number_input(
+                                "🔢 Cantidad",
+                                min_value=1,
+                                max_value=(
+                                    stock_disponible
+                                ),
+                                value=1,
+                                step=1,
                             )
-                            - cantidad,
                         )
 
-                        df_inv.loc[
-                            indice_producto,
-                            "STOCK",
-                        ] = nuevo_stock
+                    with a2:
 
-                        guardar_csv(
-                            df_inv,
-                            FILE_INV,
+                        metodo_pago = (
+                            st.selectbox(
+                                "💳 Forma de pago",
+                                [
+                                    "Efectivo",
+                                    "Transferencia",
+                                    "Tarjeta",
+                                ],
+                            )
                         )
 
-                        fecha = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M"
+                    with a3:
+
+                        descuento = (
+                            st.number_input(
+                                "🏷️ Descuento",
+                                min_value=0.0,
+                                max_value=10.0,
+                                value=0.0,
+                                step=1.0,
+                            )
                         )
 
-                        nueva_venta = pd.DataFrame(
-                            [
-                                {
-                                    "FECHA": fecha,
-                                    "CATEGORIA": producto_elegido,
-                                    "CANTIDAD": cantidad,
-                                    "PRECIO_UNITARIO": precio_producto,
-                                    "TOTAL": total,
-                                    "ABONADO": total,
-                                    "SALDO_PENDIENTE": 0.0,
-                                    "METODO_PAGO": metodo_pago,
-                                    "CLIENTE": nombre_cliente,
-                                    "CEDULA": cedula_cliente,
-                                    "TELEFONO": telefono_cliente,
-                                    "CORREO": correo_cliente,
-                                    "DIRECCION": direccion_cliente,
-                                    "ESTADO": "Pagado y Entregado",
-                                    "FOTO": ruta_foto,
-                                }
-                            ]
+                    st.markdown(
+                        "### 👤 3. Datos del cliente"
+                    )
+
+                    nombre_cliente = (
+                        st.text_input(
+                            "👤 Nombre",
+                            value="Cliente General",
+                        )
+                    )
+
+                    b1, b2 = st.columns(
+                        2
+                    )
+
+                    with b1:
+
+                        cedula_cliente = (
+                            st.text_input(
+                                "🆔 Cédula / RUC",
+                                value="S/N",
+                            )
                         )
 
-                        df_ventas = pd.concat(
-                            [
-                                df_ventas,
-                                nueva_venta,
+                    with b2:
+
+                        telefono_cliente = (
+                            st.text_input(
+                                "📞 Teléfono",
+                                value="",
+                            )
+                        )
+
+                    correo_cliente = (
+                        st.text_input(
+                            "📧 Correo electrónico",
+                            value="",
+                        )
+                    )
+
+                    direccion_cliente = (
+                        st.text_input(
+                            "📍 Dirección de entrega",
+                            value="",
+                        )
+                    )
+
+                    foto_venta = (
+                        st.file_uploader(
+                            "📸 Foto del producto (opcional)",
+                            type=[
+                                "jpg",
+                                "jpeg",
+                                "png",
                             ],
-                            ignore_index=True,
+                            key="foto_venta_principal",
                         )
+                    )
 
-                        guardar_csv(
-                            df_ventas,
-                            FILE_VENTAS,
+                    subtotal = (
+                        cantidad
+                        * precio_producto
+                    )
+
+                    total = max(
+                        0.0,
+                        subtotal
+                        - descuento,
+                    )
+
+                    html(
+                        f"""
+                        <div class="total-card">
+
+                            <div style="
+                                font-size:15px;
+                                color:#64748b;
+                                font-weight:900;
+                            ">
+                                ✅ 4. TOTAL DE LA VENTA
+                            </div>
+
+                            <div style="
+                                font-size:20px;
+                                font-weight:900;
+                                margin:8px 0;
+                            ">
+                                {cantidad} ×
+                                {nombre_producto_visible}
+                            </div>
+
+                            <div style="
+                                color:#475569;
+                            ">
+                                Subtotal:
+                                <b>
+                                    ${subtotal:,.2f}
+                                </b>
+                            </div>
+
+                            <div style="
+                                color:#dc2626;
+                            ">
+                                Descuento:
+                                <b>
+                                    -${descuento:,.2f}
+                                </b>
+                            </div>
+
+                            <div style="
+                                font-size:44px;
+                                font-weight:900;
+                                color:#1d4ed8;
+                                margin-top:7px;
+                            ">
+                                ${total:,.2f}
+                            </div>
+
+                        </div>
+                        """
+                    )
+
+                    st.write("")
+
+                    confirmar_venta = (
+                        st.form_submit_button(
+                            "💰 COBRAR Y GUARDAR VENTA",
+                            use_container_width=True,
                         )
+                    )
 
-                        cuerpo = (
-                            "NUEVA VENTA REGISTRADA\n\n"
-                            f"Cliente: {nombre_cliente}\n"
-                            f"Producto: {cantidad}x "
-                            f"{producto_elegido}\n"
-                            f"Precio unitario: "
-                            f"${precio_producto:,.2f}\n"
-                            f"Descuento: "
-                            f"${descuento:,.2f}\n"
-                            f"Total: "
-                            f"${total:,.2f}\n"
-                            f"Forma de pago: "
-                            f"{metodo_pago}\n"
-                            f"Dirección: "
-                            f"{direccion_cliente}\n"
-                            f"Fecha: {fecha}"
-                        )
+                    if confirmar_venta:
 
-                        enviar_correo_venta(
-                            correo_cliente,
-                            "🧾 Recibo de Compra - Local Mesitas",
-                            cuerpo,
-                            ruta_foto,
-                        )
+                        if not nombre_cliente.strip():
 
-                        st.session_state[
-                            "ultima_operacion_whatsapp"
-                        ] = {
-                            "mensaje": (
-                                "🚨 *NUEVA VENTA REGISTRADA* 🛏️\n\n"
-                                f"👤 *Cliente:* {nombre_cliente}\n"
-                                f"📞 *Tel:* "
-                                f"{telefono_cliente or 'N/A'}\n"
-                                f"📦 *Producto:* "
-                                f"{cantidad}x "
-                                f"{producto_elegido}\n"
-                                f"💰 *Total:* "
-                                f"${total:,.2f}\n"
-                                f"💳 *Pago:* "
-                                f"{metodo_pago}\n"
-                                f"📍 *Dirección:* "
-                                f"{direccion_cliente}\n"
-                                f"📅 *Fecha:* {fecha}"
+                            st.warning(
+                                "⚠️ Escriba el nombre del cliente."
                             )
-                        }
 
-                        st.session_state[
-                            "mensaje_exito"
-                        ] = (
-                            f"🎉 Venta guardada. "
-                            f"Quedan {nuevo_stock} unidades de "
-                            f"{producto_elegido}."
-                        )
+                        elif cantidad > stock_disponible:
 
-                        st.balloons()
-                        st.rerun()
+                            st.error(
+                                "❌ No hay suficiente stock."
+                            )
+
+                        else:
+
+                            ruta_foto = (
+                                guardar_foto(
+                                    foto_venta
+                                )
+                            )
+
+                            indice_producto = (
+                                df_inv[
+                                    df_inv[
+                                        "CATEGORIA"
+                                    ]
+                                    == producto_elegido
+                                ].index[0]
+                            )
+
+                            nuevo_stock = max(
+                                0,
+                                int(
+                                    df_inv.loc[
+                                        indice_producto,
+                                        "STOCK",
+                                    ]
+                                )
+                                - cantidad,
+                            )
+
+                            df_inv.loc[
+                                indice_producto,
+                                "STOCK",
+                            ] = nuevo_stock
+
+                            guardar_csv(
+                                df_inv,
+                                FILE_INV,
+                            )
+
+                            fecha = (
+                                datetime.now()
+                                .strftime(
+                                    "%Y-%m-%d %H:%M"
+                                )
+                            )
+
+                            nueva_venta = (
+                                pd.DataFrame(
+                                    [
+                                        {
+                                            "FECHA": fecha,
+                                            "CATEGORIA": producto_elegido,
+                                            "CANTIDAD": cantidad,
+                                            "PRECIO_UNITARIO": precio_producto,
+                                            "TOTAL": total,
+                                            "ABONADO": total,
+                                            "SALDO_PENDIENTE": 0.0,
+                                            "METODO_PAGO": metodo_pago,
+                                            "CLIENTE": nombre_cliente,
+                                            "CEDULA": cedula_cliente,
+                                            "TELEFONO": telefono_cliente,
+                                            "CORREO": correo_cliente,
+                                            "DIRECCION": direccion_cliente,
+                                            "ESTADO": "Pagado y Entregado",
+                                            "FOTO": ruta_foto,
+                                        }
+                                    ]
+                                )
+                            )
+
+                            df_ventas = pd.concat(
+                                [
+                                    df_ventas,
+                                    nueva_venta,
+                                ],
+                                ignore_index=True,
+                            )
+
+                            guardar_csv(
+                                df_ventas,
+                                FILE_VENTAS,
+                            )
+
+                            cuerpo = (
+                                "NUEVA VENTA REGISTRADA\n\n"
+                                f"Cliente: {nombre_cliente}\n"
+                                f"Producto: {cantidad}x "
+                                f"{producto_elegido}\n"
+                                f"Precio unitario: "
+                                f"${precio_producto:,.2f}\n"
+                                f"Descuento: "
+                                f"${descuento:,.2f}\n"
+                                f"Total: "
+                                f"${total:,.2f}\n"
+                                f"Forma de pago: "
+                                f"{metodo_pago}\n"
+                                f"Dirección: "
+                                f"{direccion_cliente}\n"
+                                f"Fecha: {fecha}"
+                            )
+
+                            enviar_correo_venta(
+                                correo_cliente,
+                                "🧾 Recibo de Compra - Local Mesitas",
+                                cuerpo,
+                                ruta_foto,
+                            )
+
+                            st.session_state[
+                                "ultima_operacion_whatsapp"
+                            ] = {
+                                "mensaje": (
+                                    "🚨 *NUEVA VENTA REGISTRADA* 🛏️\n\n"
+                                    f"👤 *Cliente:* "
+                                    f"{nombre_cliente}\n"
+                                    f"📞 *Tel:* "
+                                    f"{telefono_cliente or 'N/A'}\n"
+                                    f"📦 *Producto:* "
+                                    f"{cantidad}x "
+                                    f"{producto_elegido}\n"
+                                    f"💰 *Total:* "
+                                    f"${total:,.2f}\n"
+                                    f"💳 *Pago:* "
+                                    f"{metodo_pago}\n"
+                                    f"📍 *Dirección:* "
+                                    f"{direccion_cliente}\n"
+                                    f"📅 *Fecha:* "
+                                    f"{fecha}"
+                                )
+                            }
+
+                            st.session_state[
+                                "mensaje_exito"
+                            ] = (
+                                f"🎉 Venta guardada. "
+                                f"Quedan {nuevo_stock} "
+                                f"unidades de "
+                                f"{nombre_producto_visible}."
+                            )
+
+                            st.balloons()
+
+                            st.rerun()
 
 
 # ============================================================
@@ -1389,9 +1976,13 @@ if (
     in st.session_state
 ):
 
-    mensaje_ws = st.session_state[
-        "ultima_operacion_whatsapp"
-    ]["mensaje"]
+    mensaje_ws = (
+        st.session_state[
+            "ultima_operacion_whatsapp"
+        ][
+            "mensaje"
+        ]
+    )
 
     enlace1 = generar_link_whatsapp(
         NUMERO_1,
@@ -1403,64 +1994,66 @@ if (
         mensaje_ws,
     )
 
-    st.markdown(
+    html(
         f"""
-<div style="
-background:#ecfdf5;
-border:2px solid #22c55e;
-padding:25px;
-border-radius:20px;
-text-align:center;
-margin-top:20px;
-">
+        <div style="
+            background:#ecfdf5;
+            border:2px solid #22c55e;
+            padding:25px;
+            border-radius:20px;
+            text-align:center;
+            margin-top:20px;
+        ">
 
-<div style="
-font-size:28px;
-font-weight:900;
-color:#15803d;
-">
-📱 NOTIFICACIÓN LISTA
-</div>
+            <div style="
+                font-size:28px;
+                font-weight:900;
+                color:#15803d;
+            ">
+                📱 NOTIFICACIÓN LISTA
+            </div>
 
-<div style="
-font-size:16px;
-color:#475569;
-margin:10px 0 20px 0;
-">
-Presione un botón para enviar el reporte por WhatsApp.
-</div>
+            <div style="
+                font-size:16px;
+                color:#475569;
+                margin:10px 0 20px 0;
+            ">
+                Presione un botón para enviar
+                el reporte por WhatsApp.
+            </div>
 
-<a href="{enlace1}" target="_blank"
-style="
-background:#25d366;
-color:white;
-padding:15px 22px;
-border-radius:14px;
-text-decoration:none;
-font-weight:900;
-display:inline-block;
-margin:5px;
-">
-💬 WHATSAPP 1
-</a>
+            <a href="{enlace1}"
+               target="_blank"
+               style="
+                    background:#25d366;
+                    color:white;
+                    padding:15px 22px;
+                    border-radius:14px;
+                    text-decoration:none;
+                    font-weight:900;
+                    display:inline-block;
+                    margin:5px;
+               ">
+                💬 WHATSAPP 1
+            </a>
 
-<a href="{enlace2}" target="_blank"
-style="
-background:#128c7e;
-color:white;
-padding:15px 22px;
-border-radius:14px;
-text-decoration:none;
-font-weight:900;
-display:inline-block;
-margin:5px;
-">
-💬 WHATSAPP 2
-</a>
+            <a href="{enlace2}"
+               target="_blank"
+               style="
+                    background:#128c7e;
+                    color:white;
+                    padding:15px 22px;
+                    border-radius:14px;
+                    text-decoration:none;
+                    font-weight:900;
+                    display:inline-block;
+                    margin:5px;
+               ">
+                💬 WHATSAPP 2
+            </a>
 
-</div>
-        """,
-        unsafe_allow_html=True,
+        </div>
+        """
     )
 
     if st.button(
@@ -1475,7 +2068,10 @@ margin:5px;
         st.rerun()
 
 
-if "mensaje_exito" in st.session_state:
+if (
+    "mensaje_exito"
+    in st.session_state
+):
 
     st.success(
         st.session_state[
@@ -1501,80 +2097,111 @@ if "mensaje_exito" in st.session_state:
 
 with tab_apartado:
 
-    st.markdown(
+    html(
         """
-<div style="
-background:linear-gradient(135deg,#ffffff,#f0fdf4);
-padding:25px;
-border-radius:22px;
-border:1px solid #bbf7d0;
-margin-bottom:20px;
-">
+        <div style="
+            background:
+            linear-gradient(
+                135deg,
+                #ffffff,
+                #f0fdf4
+            );
 
-<div style="
-font-size:32px;
-font-weight:900;
-color:#0f172a;
-">
-📦 APARTADOS Y ABONOS
-</div>
+            padding:25px;
+            border-radius:22px;
+            border:1px solid #bbf7d0;
+            margin-bottom:20px;
+        ">
 
-<div style="
-font-size:16px;
-color:#64748b;
-margin-top:6px;
-">
-Registre el apartado y luego los pagos del cliente.
-</div>
+            <div style="
+                font-size:32px;
+                font-weight:900;
+                color:#0f172a;
+            ">
+                📦 APARTADOS Y ABONOS
+            </div>
 
-</div>
-        """,
-        unsafe_allow_html=True,
+            <div style="
+                font-size:16px;
+                color:#64748b;
+                margin-top:6px;
+            ">
+                Registre el apartado y luego
+                los pagos del cliente.
+            </div>
+
+        </div>
+        """
     )
+
 
     with st.expander(
         "➕ CREAR NUEVO APARTADO",
         expanded=True,
     ):
 
-        if df_inv.empty:
+        productos_para_apartar = (
+            obtener_productos_vendibles(
+                df_inv
+            )
+        )
+
+        if not productos_para_apartar:
 
             st.info(
-                "No existen productos."
+                "No existen productos para apartar."
             )
 
         else:
 
-            productos_para_apartar = (
-                df_inv[
-                    "CATEGORIA"
-                ].tolist()
-            )
-
-            producto_apartado = st.selectbox(
-                "📦 1. Producto",
-                productos_para_apartar,
-                key="producto_apartado",
+            producto_apartado = (
+                st.selectbox(
+                    "📦 1. Producto",
+                    productos_para_apartar,
+                    key="producto_apartado",
+                )
             )
 
             fila_apartado = df_inv[
-                df_inv["CATEGORIA"]
+                df_inv[
+                    "CATEGORIA"
+                ]
                 == producto_apartado
             ].iloc[0]
 
             stock_apartado = max(
                 0,
-                int(fila_apartado["STOCK"]),
+                int(
+                    fila_apartado[
+                        "STOCK"
+                    ]
+                ),
             )
 
             precio_apartado = float(
-                fila_apartado["PRECIO"]
+                fila_apartado[
+                    "PRECIO"
+                ]
             )
 
+            nombre_apartado_visible = (
+                producto_apartado
+            )
+
+            if " - " in producto_apartado:
+
+                nombre_apartado_visible = (
+                    producto_apartado.split(
+                        " - ",
+                        1,
+                    )[1]
+                )
+
             st.info(
-                f"💰 Precio de {producto_apartado}: "
+                f"💰 Precio: "
                 f"**${precio_apartado:,.2f}**  |  "
-                f"📦 Stock: **{stock_apartado}**"
+                f"📦 Stock: "
+                f"**{stock_apartado}**"
             )
 
             with st.form(
@@ -1585,68 +2212,88 @@ Registre el apartado y luego los pagos del cliente.
                     "### 👤 2. Datos del cliente"
                 )
 
-                cliente_apartado = st.text_input(
-                    "👤 Nombre y apellido"
+                cliente_apartado = (
+                    st.text_input(
+                        "👤 Nombre y apellido"
+                    )
                 )
 
-                c1, c2 = st.columns(2)
+                c1, c2 = st.columns(
+                    2
+                )
 
                 with c1:
 
-                    cedula_apartado = st.text_input(
-                        "🆔 Cédula / DNI"
+                    cedula_apartado = (
+                        st.text_input(
+                            "🆔 Cédula / DNI"
+                        )
                     )
 
                 with c2:
 
-                    telefono_apartado = st.text_input(
-                        "📞 Teléfono"
+                    telefono_apartado = (
+                        st.text_input(
+                            "📞 Teléfono"
+                        )
                     )
 
-                correo_apartado = st.text_input(
-                    "📧 Correo electrónico"
+                correo_apartado = (
+                    st.text_input(
+                        "📧 Correo electrónico"
+                    )
                 )
 
-                direccion_apartado = st.text_input(
-                    "📍 Dirección"
+                direccion_apartado = (
+                    st.text_input(
+                        "📍 Dirección"
+                    )
                 )
 
                 st.markdown(
                     "### 💵 3. Cantidad y abono"
                 )
 
-                a1, a2 = st.columns(2)
+                a1, a2 = st.columns(
+                    2
+                )
 
                 with a1:
 
-                    cantidad_apartado = st.number_input(
-                        "🔢 Cantidad",
-                        min_value=1,
-                        max_value=max(
-                            1,
-                            stock_apartado,
-                        ),
-                        value=1,
-                        step=1,
+                    cantidad_apartado = (
+                        st.number_input(
+                            "🔢 Cantidad",
+                            min_value=1,
+                            max_value=max(
+                                1,
+                                stock_apartado,
+                            ),
+                            value=1,
+                            step=1,
+                        )
                     )
 
                 with a2:
 
-                    abono_inicial = st.number_input(
-                        "💵 Abono de hoy",
-                        min_value=0.0,
-                        value=10.0,
-                        step=5.0,
+                    abono_inicial = (
+                        st.number_input(
+                            "💵 Abono de hoy",
+                            min_value=0.0,
+                            value=10.0,
+                            step=5.0,
+                        )
                     )
 
-                foto_apartado = st.file_uploader(
-                    "📸 Foto del producto (opcional)",
-                    type=[
-                        "jpg",
-                        "jpeg",
-                        "png",
-                    ],
-                    key="foto_apartado_final",
+                foto_apartado = (
+                    st.file_uploader(
+                        "📸 Foto del producto (opcional)",
+                        type=[
+                            "jpg",
+                            "jpeg",
+                            "png",
+                        ],
+                        key="foto_apartado_final",
+                    )
                 )
 
                 total_apartado = (
@@ -1660,42 +2307,51 @@ Registre el apartado y luego los pagos del cliente.
                     - abono_inicial,
                 )
 
-                st.markdown(
+                html(
                     f"""
-<div class="total-card">
-<div style="font-weight:900;color:#64748b;">
-📋 RESUMEN DEL APARTADO
-</div>
+                    <div class="total-card">
 
-<div style="
-font-size:27px;
-font-weight:900;
-">
-${total_apartado:,.2f}
-</div>
+                        <div style="
+                            font-weight:900;
+                            color:#64748b;
+                        ">
+                            📋 RESUMEN DEL APARTADO
+                        </div>
 
-<div style="color:#16a34a;font-size:18px;">
-✅ Abono:
-${abono_inicial:,.2f}
-</div>
+                        <div style="
+                            font-size:27px;
+                            font-weight:900;
+                        ">
+                            ${total_apartado:,.2f}
+                        </div>
 
-<div style="
-color:#dc2626;
-font-size:23px;
-font-weight:900;
-margin-top:5px;
-">
-🔴 Falta:
-${saldo_apartado:,.2f}
-</div>
-</div>
-                    """,
-                    unsafe_allow_html=True,
+                        <div style="
+                            color:#16a34a;
+                            font-size:18px;
+                        ">
+                            ✅ Abono:
+                            ${abono_inicial:,.2f}
+                        </div>
+
+                        <div style="
+                            color:#dc2626;
+                            font-size:23px;
+                            font-weight:900;
+                            margin-top:5px;
+                        ">
+                            🔴 Falta:
+                            ${saldo_apartado:,.2f}
+                        </div>
+
+                    </div>
+                    """
                 )
 
-                guardar_apartado = st.form_submit_button(
-                    "💾 GUARDAR APARTADO",
-                    use_container_width=True,
+                guardar_apartado = (
+                    st.form_submit_button(
+                        "💾 GUARDAR APARTADO",
+                        use_container_width=True,
+                    )
                 )
 
                 if guardar_apartado:
@@ -1712,8 +2368,7 @@ ${saldo_apartado:,.2f}
                     ):
 
                         st.error(
-                            "❌ El abono no puede ser mayor "
-                            "que el total."
+                            "❌ El abono no puede ser mayor que el total."
                         )
 
                     elif (
@@ -1727,9 +2382,11 @@ ${saldo_apartado:,.2f}
 
                     else:
 
-                        ruta_foto_ap = guardar_foto(
-                            foto_apartado,
-                            "ap_",
+                        ruta_foto_ap = (
+                            guardar_foto(
+                                foto_apartado,
+                                "ap_",
+                            )
                         )
 
                         estado_ap = (
@@ -1738,38 +2395,45 @@ ${saldo_apartado:,.2f}
                             else "Apartado (Pendiente)"
                         )
 
-                        fecha_ap = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M"
+                        fecha_ap = (
+                            datetime.now()
+                            .strftime(
+                                "%Y-%m-%d %H:%M"
+                            )
                         )
 
-                        nuevo_apartado = pd.DataFrame(
-                            [
-                                {
-                                    "FECHA": fecha_ap,
-                                    "CATEGORIA": producto_apartado,
-                                    "CANTIDAD": cantidad_apartado,
-                                    "PRECIO_UNITARIO": precio_apartado,
-                                    "TOTAL": total_apartado,
-                                    "ABONADO": abono_inicial,
-                                    "SALDO_PENDIENTE": saldo_apartado,
-                                    "METODO_PAGO": "Efectivo",
-                                    "CLIENTE": cliente_apartado,
-                                    "CEDULA": cedula_apartado,
-                                    "TELEFONO": telefono_apartado,
-                                    "CORREO": correo_apartado,
-                                    "DIRECCION": direccion_apartado,
-                                    "ESTADO": estado_ap,
-                                    "FOTO": ruta_foto_ap,
-                                }
-                            ]
+                        nuevo_apartado = (
+                            pd.DataFrame(
+                                [
+                                    {
+                                        "FECHA": fecha_ap,
+                                        "CATEGORIA": producto_apartado,
+                                        "CANTIDAD": cantidad_apartado,
+                                        "PRECIO_UNITARIO": precio_apartado,
+                                        "TOTAL": total_apartado,
+                                        "ABONADO": abono_inicial,
+                                        "SALDO_PENDIENTE": saldo_apartado,
+                                        "METODO_PAGO": "Efectivo",
+                                        "CLIENTE": cliente_apartado,
+                                        "CEDULA": cedula_apartado,
+                                        "TELEFONO": telefono_apartado,
+                                        "CORREO": correo_apartado,
+                                        "DIRECCION": direccion_apartado,
+                                        "ESTADO": estado_ap,
+                                        "FOTO": ruta_foto_ap,
+                                    }
+                                ]
+                            )
                         )
 
-                        # Si el cliente paga todo de una vez,
-                        # se descuenta del stock inmediatamente.
+                        # Si se paga todo de una vez,
+                        # se descuenta el SUBPRODUCTO correcto.
                         if saldo_apartado <= 0:
 
                             indice = df_inv[
-                                df_inv["CATEGORIA"]
+                                df_inv[
+                                    "CATEGORIA"
+                                ]
                                 == producto_apartado
                             ].index[0]
 
@@ -1781,7 +2445,7 @@ ${saldo_apartado:,.2f}
                                 int(
                                     df_inv.loc[
                                         indice,
-                                        "STOCK"
+                                        "STOCK",
                                     ]
                                 )
                                 - cantidad_apartado,
@@ -1807,7 +2471,8 @@ ${saldo_apartado:,.2f}
 
                         cuerpo_ap = (
                             "NUEVO APARTADO\n\n"
-                            f"Cliente: {cliente_apartado}\n"
+                            f"Cliente: "
+                            f"{cliente_apartado}\n"
                             f"Producto: "
                             f"{cantidad_apartado}x "
                             f"{producto_apartado}\n"
@@ -1857,11 +2522,17 @@ ${saldo_apartado:,.2f}
 
                         st.rerun()
 
+
     st.markdown("---")
-    st.markdown("### 📋 5. Apartados pendientes")
+
+    st.markdown(
+        "### 📋 5. Apartados pendientes"
+    )
 
     pendientes = df_ventas[
-        df_ventas["ESTADO"]
+        df_ventas[
+            "ESTADO"
+        ]
         .astype(str)
         .str.contains(
             "Apartado",
@@ -1883,85 +2554,108 @@ ${saldo_apartado:,.2f}
                 f"Fila {i} | "
                 f"{r['CLIENTE']} | "
                 f"{r['CATEGORIA']} | "
-                f"Debe: ${float(r['SALDO_PENDIENTE']):,.2f}"
+                f"Debe: "
+                f"${float(r['SALDO_PENDIENTE']):,.2f}"
             )
-            for i, r in pendientes.iterrows()
+            for i, r
+            in pendientes.iterrows()
         ]
 
-        seleccion_ap = st.selectbox(
-            "🔍 Seleccione al cliente",
-            opciones_ap,
-            key="seleccionar_apartado",
+        seleccion_ap = (
+            st.selectbox(
+                "🔍 Seleccione al cliente",
+                opciones_ap,
+                key="seleccionar_apartado",
+            )
         )
 
         indice_ap = int(
             seleccion_ap
             .split(" | ")[0]
-            .replace("Fila ", "")
+            .replace(
+                "Fila ",
+                "",
+            )
         )
 
         registro_ap = df_ventas.loc[
             indice_ap
         ]
 
-        col_datos, col_foto = st.columns(
-            [1.5, 1]
+        col_datos, col_foto = (
+            st.columns([1.5, 1])
         )
 
         with col_datos:
 
-            st.markdown(
+            html(
                 f"""
-<div class="receipt-card">
+                <div class="receipt-card">
 
-<div style="
-font-size:28px;
-font-weight:900;
-color:#2563eb;
-">
-🧾 RECIBO
-</div>
+                    <div style="
+                        font-size:28px;
+                        font-weight:900;
+                        color:#2563eb;
+                    ">
+                        🧾 RECIBO
+                    </div>
 
-<p><b>📅 Fecha:</b> {registro_ap["FECHA"]}</p>
+                    <p>
+                        <b>📅 Fecha:</b>
+                        {registro_ap["FECHA"]}
+                    </p>
 
-<p><b>👤 Cliente:</b> {registro_ap["CLIENTE"]}</p>
+                    <p>
+                        <b>👤 Cliente:</b>
+                        {registro_ap["CLIENTE"]}
+                    </p>
 
-<p><b>📞 Teléfono:</b> {registro_ap["TELEFONO"]}</p>
+                    <p>
+                        <b>📞 Teléfono:</b>
+                        {registro_ap["TELEFONO"]}
+                    </p>
 
-<p><b>🆔 Cédula:</b> {registro_ap["CEDULA"]}</p>
+                    <p>
+                        <b>🆔 Cédula:</b>
+                        {registro_ap["CEDULA"]}
+                    </p>
 
-<p><b>📍 Dirección:</b> {registro_ap["DIRECCION"]}</p>
+                    <p>
+                        <b>📍 Dirección:</b>
+                        {registro_ap["DIRECCION"]}
+                    </p>
 
-<hr>
+                    <hr>
 
-<p>
-<b>📦 Producto:</b>
-{registro_ap["CANTIDAD"]}x
-{registro_ap["CATEGORIA"]}
-</p>
+                    <p>
+                        <b>📦 Producto:</b>
+                        {registro_ap["CANTIDAD"]}x
+                        {registro_ap["CATEGORIA"]}
+                    </p>
 
-<p>
-<b>💰 Total:</b>
-${float(registro_ap["TOTAL"]):,.2f}
-</p>
+                    <p>
+                        <b>💰 Total:</b>
+                        ${float(registro_ap["TOTAL"]):,.2f}
+                    </p>
 
-<p style="color:#16a34a;">
-<b>✅ Abonado:</b>
-${float(registro_ap["ABONADO"]):,.2f}
-</p>
+                    <p style="
+                        color:#16a34a;
+                    ">
+                        <b>✅ Abonado:</b>
+                        ${float(registro_ap["ABONADO"]):,.2f}
+                    </p>
 
-<p style="
-color:#dc2626;
-font-size:25px;
-font-weight:900;
-">
-🔴 Falta:
-${float(registro_ap["SALDO_PENDIENTE"]):,.2f}
-</p>
+                    <p style="
+                        color:#dc2626;
+                        font-size:25px;
+                        font-weight:900;
+                    ">
+                        🔴 Falta:
+                        ${float(registro_ap["SALDO_PENDIENTE"]):,.2f}
+                    </p>
 
-</div>
-                """,
-                unsafe_allow_html=True,
+                </div>
+                """
             )
 
         with col_foto:
@@ -1985,7 +2679,9 @@ ${float(registro_ap["SALDO_PENDIENTE"]):,.2f}
                 st.image(
                     ruta,
                     caption=str(
-                        registro_ap["CATEGORIA"]
+                        registro_ap[
+                            "CATEGORIA"
+                        ]
                     ),
                     use_container_width=True,
                 )
@@ -2010,71 +2706,90 @@ ${float(registro_ap["SALDO_PENDIENTE"]):,.2f}
                 "### 💵 Registrar nuevo abono"
             )
 
-            abono_hoy = st.number_input(
-                "¿Cuánto dinero trae el cliente?",
-                min_value=0.0,
-                max_value=saldo_actual,
-                value=saldo_actual,
-                step=5.0,
+            abono_hoy = (
+                st.number_input(
+                    "¿Cuánto dinero trae el cliente?",
+                    min_value=0.0,
+                    max_value=saldo_actual,
+                    value=saldo_actual,
+                    step=5.0,
+                )
             )
 
-            registrar_abono = st.form_submit_button(
-                "📥 GUARDAR ABONO",
-                use_container_width=True,
+            registrar_abono = (
+                st.form_submit_button(
+                    "📥 GUARDAR ABONO",
+                    use_container_width=True,
+                )
             )
 
             if registrar_abono:
 
                 nuevo_abonado = (
                     float(
-                        registro_ap["ABONADO"]
+                        registro_ap[
+                            "ABONADO"
+                        ]
                     )
                     + abono_hoy
                 )
 
                 nuevo_saldo = max(
                     0.0,
-                    saldo_actual - abono_hoy,
+                    saldo_actual
+                    - abono_hoy,
                 )
 
                 df_ventas.loc[
                     indice_ap,
-                    "ABONADO"
+                    "ABONADO",
                 ] = nuevo_abonado
 
                 df_ventas.loc[
                     indice_ap,
-                    "SALDO_PENDIENTE"
+                    "SALDO_PENDIENTE",
                 ] = nuevo_saldo
 
                 if nuevo_saldo <= 0:
 
                     df_ventas.loc[
                         indice_ap,
-                        "ESTADO"
+                        "ESTADO",
                     ] = (
                         "Pagado y Entregado"
                     )
 
-                    # IMPORTANTE:
-                    # Se descuenta el stock cuando se
-                    # termina de pagar.
-                    producto_base = base_producto(
-                        registro_ap["CATEGORIA"]
+                    # ----------------------------------------
+                    # CORRECCIÓN:
+                    # DESCONTAR EL SUBPRODUCTO EXACTO
+                    # ----------------------------------------
+
+                    producto_entregado = str(
+                        registro_ap[
+                            "CATEGORIA"
+                        ]
                     )
 
                     if (
-                        producto_base
-                        in df_inv["CATEGORIA"].values
+                        producto_entregado
+                        in df_inv[
+                            "CATEGORIA"
+                        ].values
                     ):
 
-                        indice_producto = df_inv[
-                            df_inv["CATEGORIA"]
-                            == producto_base
-                        ].index[0]
+                        indice_producto = (
+                            df_inv[
+                                df_inv[
+                                    "CATEGORIA"
+                                ]
+                                == producto_entregado
+                            ].index[0]
+                        )
 
                         cantidad_entregar = int(
-                            registro_ap["CANTIDAD"]
+                            registro_ap[
+                                "CANTIDAD"
+                            ]
                         )
 
                         stock_nuevo = max(
@@ -2082,7 +2797,7 @@ ${float(registro_ap["SALDO_PENDIENTE"]):,.2f}
                             int(
                                 df_inv.loc[
                                     indice_producto,
-                                    "STOCK"
+                                    "STOCK",
                                 ]
                             )
                             - cantidad_entregar,
@@ -2090,7 +2805,7 @@ ${float(registro_ap["SALDO_PENDIENTE"]):,.2f}
 
                         df_inv.loc[
                             indice_producto,
-                            "STOCK"
+                            "STOCK",
                         ] = stock_nuevo
 
                         guardar_csv(
@@ -2107,14 +2822,15 @@ ${float(registro_ap["SALDO_PENDIENTE"]):,.2f}
 
                     df_ventas.loc[
                         indice_ap,
-                        "ESTADO"
+                        "ESTADO",
                     ] = (
                         "Apartado (Pendiente)"
                     )
 
                     mensaje_pago = (
                         f"✅ Abono guardado. "
-                        f"Falta ${nuevo_saldo:,.2f}."
+                        f"Falta "
+                        f"${nuevo_saldo:,.2f}."
                     )
 
                 guardar_csv(
@@ -2125,6 +2841,8 @@ ${float(registro_ap["SALDO_PENDIENTE"]):,.2f}
                 cuerpo_abono = (
                     f"Abono para "
                     f"{registro_ap['CLIENTE']}\n"
+                    f"Producto: "
+                    f"{registro_ap['CATEGORIA']}\n"
                     f"Abono recibido: "
                     f"${abono_hoy:,.2f}\n"
                     f"Saldo nuevo: "
@@ -2134,10 +2852,14 @@ ${float(registro_ap["SALDO_PENDIENTE"]):,.2f}
                 )
 
                 enviar_correo_venta(
-                    registro_ap["CORREO"],
+                    registro_ap[
+                        "CORREO"
+                    ],
                     "🧾 Comprobante de Abono - Local Mesitas",
                     cuerpo_abono,
-                    registro_ap["FOTO"],
+                    registro_ap[
+                        "FOTO"
+                    ],
                 )
 
                 st.session_state[
@@ -2147,6 +2869,8 @@ ${float(registro_ap["SALDO_PENDIENTE"]):,.2f}
                         "💵 *NUEVO ABONO REGISTRADO*\n\n"
                         f"👤 *Cliente:* "
                         f"{registro_ap['CLIENTE']}\n"
+                        f"📦 *Producto:* "
+                        f"{registro_ap['CATEGORIA']}\n"
                         f"📥 *Abono:* "
                         f"${abono_hoy:,.2f}\n"
                         f"🔴 *Saldo:* "
@@ -2169,35 +2893,41 @@ ${float(registro_ap["SALDO_PENDIENTE"]):,.2f}
 
 with tab_inventario:
 
-    st.markdown(
+    html(
         """
-<div style="
-background:linear-gradient(135deg,#ffffff,#fff7ed);
-padding:25px;
-border-radius:22px;
-border:1px solid #fed7aa;
-margin-bottom:20px;
-">
+        <div style="
+            background:
+            linear-gradient(
+                135deg,
+                #ffffff,
+                #fff7ed
+            );
 
-<div style="
-font-size:32px;
-font-weight:900;
-color:#0f172a;
-">
-🛠️ INVENTARIO
-</div>
+            padding:25px;
+            border-radius:22px;
+            border:1px solid #fed7aa;
+            margin-bottom:20px;
+        ">
 
-<div style="
-font-size:16px;
-color:#64748b;
-margin-top:6px;
-">
-Aquí puede cambiar precios, agregar productos y aumentar existencias.
-</div>
+            <div style="
+                font-size:32px;
+                font-weight:900;
+                color:#0f172a;
+            ">
+                🛠️ INVENTARIO
+            </div>
 
-</div>
-        """,
-        unsafe_allow_html=True,
+            <div style="
+                font-size:16px;
+                color:#64748b;
+                margin-top:6px;
+            ">
+                Aquí puede cambiar precios,
+                agregar productos y aumentar existencias.
+            </div>
+
+        </div>
+        """
     )
 
     clave_admin = st.text_input(
@@ -2222,18 +2952,26 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
 
         if not df_inv.empty:
 
-            producto_modificar = st.selectbox(
-                "📦 Producto",
-                df_inv["CATEGORIA"].tolist(),
-                key="producto_modificar",
+            producto_modificar = (
+                st.selectbox(
+                    "📦 Producto",
+                    df_inv[
+                        "CATEGORIA"
+                    ].tolist(),
+                    key="producto_modificar",
+                )
             )
 
             fila_mod = df_inv[
-                df_inv["CATEGORIA"]
+                df_inv[
+                    "CATEGORIA"
+                ]
                 == producto_modificar
             ].iloc[0]
 
-            m1, m2 = st.columns(2)
+            m1, m2 = st.columns(
+                2
+            )
 
             with m1:
 
@@ -2244,31 +2982,70 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
 
             with m2:
 
+                # Las categorías principales
+                # con subproductos no necesitan precio.
+                if es_categoria_principal(
+                    df_inv,
+                    producto_modificar,
+                ):
+
+                    st.info(
+                        "ℹ️ Esta categoría "
+                        "usa los precios de sus subproductos."
+                    )
+
+                else:
+
+                    st.info(
+                        f"💰 Precio actual: "
+                        f"**${float(fila_mod['PRECIO']):,.2f}**"
+                    )
+
+            cambio_stock = (
+                st.number_input(
+                    "📦 Sumar o restar stock",
+                    value=0,
+                    step=1,
+                    help=(
+                        "Ejemplo: 5 para agregar 5. "
+                        "-2 para sacar 2."
+                    ),
+                    key="cambio_stock_inventario",
+                )
+            )
+
+            # -----------------------------------------------
+            # PRECIO
+            # -----------------------------------------------
+
+            if es_categoria_principal(
+                df_inv,
+                producto_modificar,
+            ):
+
                 st.info(
-                    f"💰 Precio actual: "
-                    f"**${float(fila_mod['PRECIO']):,.2f}**"
+                    "💡 No se modifica el precio de "
+                    "una categoría principal. "
+                    "Cada subproducto tiene su propio precio."
                 )
 
-            cambio_stock = st.number_input(
-                "📦 Sumar o restar stock",
-                value=0,
-                step=1,
-                help=(
-                    "Ejemplo: 5 para agregar 5. "
-                    "-2 para sacar 2."
-                ),
-                key="cambio_stock_inventario",
-            )
-
-            precio_nuevo = st.number_input(
-                "💰 Precio de este producto",
-                min_value=0.0,
-                value=float(
+                precio_nuevo = float(
                     fila_mod["PRECIO"]
-                ),
-                step=5.0,
-                key="precio_nuevo_inventario",
-            )
+                )
+
+            else:
+
+                precio_nuevo = (
+                    st.number_input(
+                        "💰 Precio de este producto",
+                        min_value=0.0,
+                        value=float(
+                            fila_mod["PRECIO"]
+                        ),
+                        step=5.0,
+                        key="precio_nuevo_inventario",
+                    )
+                )
 
             if st.button(
                 "💾 GUARDAR CAMBIOS",
@@ -2276,7 +3053,9 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
             ):
 
                 indice = df_inv[
-                    df_inv["CATEGORIA"]
+                    df_inv[
+                        "CATEGORIA"
+                    ]
                     == producto_modificar
                 ].index[0]
 
@@ -2288,19 +3067,33 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
                     int(
                         df_inv.loc[
                             indice,
-                            "STOCK"
+                            "STOCK",
                         ]
                     )
                     + cambio_stock,
                 )
 
-                df_inv.loc[
-                    indice,
-                    "PRECIO",
-                ] = max(
-                    0.0,
-                    precio_nuevo,
-                )
+                if not es_categoria_principal(
+                    df_inv,
+                    producto_modificar,
+                ):
+
+                    df_inv.loc[
+                        indice,
+                        "PRECIO",
+                    ] = max(
+                        0.0,
+                        precio_nuevo,
+                    )
+
+                else:
+
+                    # Categoría principal:
+                    # siempre dejamos precio 0.
+                    df_inv.loc[
+                        indice,
+                        "PRECIO",
+                    ] = 0.0
 
                 guardar_csv(
                     df_inv,
@@ -2313,25 +3106,31 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
 
                 st.rerun()
 
+
         st.markdown("---")
 
         # ----------------------------------------------------
-        # CREAR SUBPRODUCTO CON SU PROPIO PRECIO
+        # CREAR PRODUCTO / SUBPRODUCTO
         # ----------------------------------------------------
 
         st.markdown(
-            """
-### ➕ 2. Agregar producto o subproducto
-
-**Cada subproducto tendrá su propio precio y su propio stock.**
-            """
+            "### ➕ 2. Agregar producto o subproducto"
         )
 
-        opciones_principales = (
-            df_inv["CATEGORIA"].tolist()
-            if not df_inv.empty
-            else []
+        st.info(
+            "💡 Cada subproducto tendrá "
+            "su propio precio y su propio stock."
         )
+
+        opciones_principales = [
+            nombre
+            for nombre
+            in df_inv[
+                "CATEGORIA"
+            ].tolist()
+            if " - "
+            not in str(nombre)
+        ]
 
         opciones_principales.append(
             "✨ CREAR PRODUCTO NUEVO"
@@ -2348,21 +3147,25 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
             == "✨ CREAR PRODUCTO NUEVO"
         ):
 
-            nuevo_nombre = st.text_input(
-                "📦 Nombre del producto",
-                placeholder="Ejemplo: Camas",
-                key="nuevo_nombre_producto",
+            nuevo_nombre = (
+                st.text_input(
+                    "📦 Nombre del producto",
+                    placeholder="Ejemplo: Camas",
+                    key="nuevo_nombre_producto",
+                )
             )
 
         else:
 
-            nuevo_subproducto = st.text_input(
-                "🛏️ Nombre del subproducto",
-                placeholder=(
-                    "Ejemplo: "
-                    "Cama de 3 plazas"
-                ),
-                key="nuevo_subproducto",
+            nuevo_subproducto = (
+                st.text_input(
+                    "🛏️ Nombre del subproducto",
+                    placeholder=(
+                        "Ejemplo: "
+                        "Cama de 3 plazas"
+                    ),
+                    key="nuevo_subproducto",
+                )
             )
 
             if nuevo_subproducto.strip():
@@ -2376,31 +3179,38 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
 
                 nuevo_nombre = ""
 
-        s1, s2 = st.columns(2)
+        s1, s2 = st.columns(
+            2
+        )
 
         with s1:
 
-            nuevo_stock = st.number_input(
-                "📦 Stock inicial",
-                min_value=0,
-                value=1,
-                step=1,
-                key="nuevo_stock",
+            nuevo_stock = (
+                st.number_input(
+                    "📦 Stock inicial",
+                    min_value=0,
+                    value=1,
+                    step=1,
+                    key="nuevo_stock",
+                )
             )
 
         with s2:
 
-            nuevo_precio = st.number_input(
-                "💰 Precio de ESTE producto",
-                min_value=0.0,
-                value=0.0,
-                step=5.0,
-                key="nuevo_precio",
+            nuevo_precio = (
+                st.number_input(
+                    "💰 Precio de ESTE producto",
+                    min_value=0.0,
+                    value=0.0,
+                    step=5.0,
+                    key="nuevo_precio",
+                )
             )
 
         st.info(
-            "💡 Puede poner un precio diferente "
-            "para cada cama, colchón, armario, etc."
+            "💡 Ejemplo: "
+            "Camas - Cama de 3 plazas "
+            "→ $350.00"
         )
 
         if st.button(
@@ -2408,7 +3218,9 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
             use_container_width=True,
         ):
 
-            nombre_final = nuevo_nombre.strip()
+            nombre_final = (
+                nuevo_nombre.strip()
+            )
 
             if not nombre_final:
 
@@ -2422,7 +3234,7 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
                     "⚠️ Escriba un precio mayor que $0."
                 )
 
-            elif existe_subproducto(
+            elif existe_producto(
                 df_inv,
                 nombre_final,
             ):
@@ -2433,14 +3245,16 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
 
             else:
 
-                nuevo_registro = pd.DataFrame(
-                    [
-                        {
-                            "CATEGORIA": nombre_final,
-                            "STOCK": nuevo_stock,
-                            "PRECIO": nuevo_precio,
-                        }
-                    ]
+                nuevo_registro = (
+                    pd.DataFrame(
+                        [
+                            {
+                                "CATEGORIA": nombre_final,
+                                "STOCK": nuevo_stock,
+                                "PRECIO": nuevo_precio,
+                            }
+                        ]
+                    )
                 )
 
                 df_inv = pd.concat(
@@ -2457,11 +3271,14 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
                 )
 
                 st.success(
-                    f"🎉 Creado: {nombre_final} "
-                    f"por ${nuevo_precio:,.2f}"
+                    f"🎉 Creado: "
+                    f"{nombre_final} "
+                    f"por "
+                    f"${nuevo_precio:,.2f}"
                 )
 
                 st.rerun()
+
 
         st.markdown("---")
 
@@ -2475,29 +3292,65 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
 
         for _, fila in df_inv.iterrows():
 
+            nombre = str(
+                fila["CATEGORIA"]
+            )
+
             stock = max(
                 0,
-                int(fila["STOCK"])
+                int(
+                    fila["STOCK"]
+                ),
             )
 
             precio = float(
                 fila["PRECIO"]
             )
 
-            estado, color = estado_stock(
-                stock
+            estado, color = (
+                estado_stock(
+                    stock
+                )
             )
 
-            c1, c2, c3, c4 = st.columns(
-                [3.5, 1.2, 1.4, 2]
+            es_principal = (
+                es_categoria_principal(
+                    df_inv,
+                    nombre,
+                )
+            )
+
+            c1, c2, c3, c4 = (
+                st.columns(
+                    [
+                        3.5,
+                        1.2,
+                        1.4,
+                        2,
+                    ]
+                )
             )
 
             with c1:
 
-                st.write(
-                    f"{obtener_icono(fila['CATEGORIA'])} "
-                    f"**{fila['CATEGORIA']}**"
-                )
+                if es_principal:
+
+                    st.write(
+                        f"{obtener_icono(nombre)} "
+                        f"**{nombre}** "
+                        f"📂 Categoría"
+                    )
+
+                else:
+
+                    nombre_visual = (
+                        nombre
+                    )
+
+                    st.write(
+                        f"{obtener_icono(nombre)} "
+                        f"**{nombre_visual}**"
+                    )
 
             with c2:
 
@@ -2507,16 +3360,31 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
 
             with c3:
 
-                st.write(
-                    f"${precio:,.2f}"
-                )
+                if es_principal:
+
+                    st.write(
+                        "—"
+                    )
+
+                else:
+
+                    st.write(
+                        f"${precio:,.2f}"
+                    )
 
             with c4:
 
-                st.markdown(
-                    f"<span style='color:{color};font-weight:900;'>{estado}</span>",
-                    unsafe_allow_html=True,
+                html(
+                    f"""
+                    <span style="
+                        color:{color};
+                        font-weight:900;
+                    ">
+                        {estado}
+                    </span>
+                    """
                 )
+
 
         st.markdown("---")
 
@@ -2528,15 +3396,21 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
             "### 🗑️ 4. Eliminar producto"
         )
 
-        producto_eliminar = st.selectbox(
-            "📦 Producto",
-            df_inv["CATEGORIA"].tolist(),
-            key="producto_eliminar",
+        producto_eliminar = (
+            st.selectbox(
+                "📦 Producto",
+                df_inv[
+                    "CATEGORIA"
+                ].tolist(),
+                key="producto_eliminar",
+            )
         )
 
-        confirmar_eliminar = st.checkbox(
-            "⚠️ Confirmo que deseo eliminarlo.",
-            key="confirmar_eliminar_inventario",
+        confirmar_eliminar = (
+            st.checkbox(
+                "⚠️ Confirmo que deseo eliminarlo.",
+                key="confirmar_eliminar_inventario",
+            )
         )
 
         if st.button(
@@ -2553,7 +3427,9 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
             else:
 
                 df_inv = df_inv[
-                    df_inv["CATEGORIA"]
+                    df_inv[
+                        "CATEGORIA"
+                    ]
                     != producto_eliminar
                 ].reset_index(
                     drop=True
@@ -2584,36 +3460,43 @@ Aquí puede cambiar precios, agregar productos y aumentar existencias.
 
 with tab_historial:
 
-    st.markdown(
+    html(
         """
-<div style="
-background:linear-gradient(135deg,#ffffff,#f8fafc);
-padding:25px;
-border-radius:22px;
-border:1px solid #e2e8f0;
-margin-bottom:20px;
-">
+        <div style="
+            background:
+            linear-gradient(
+                135deg,
+                #ffffff,
+                #f8fafc
+            );
 
-<div style="
-font-size:32px;
-font-weight:900;
-color:#0f172a;
-">
-📜 HISTORIAL Y CAJA
-</div>
+            padding:25px;
+            border-radius:22px;
+            border:1px solid #e2e8f0;
+            margin-bottom:20px;
+        ">
 
-<div style="
-font-size:16px;
-color:#64748b;
-margin-top:6px;
-">
-Consulte ventas, apartados, dinero recibido y reportes.
-</div>
+            <div style="
+                font-size:32px;
+                font-weight:900;
+                color:#0f172a;
+            ">
+                📜 HISTORIAL Y CAJA
+            </div>
 
-</div>
-        """,
-        unsafe_allow_html=True,
+            <div style="
+                font-size:16px;
+                color:#64748b;
+                margin-top:6px;
+            ">
+                Consulte ventas, apartados,
+                dinero recibido y reportes.
+            </div>
+
+        </div>
+        """
     )
+
 
     if df_ventas.empty:
 
@@ -2624,10 +3507,14 @@ Consulte ventas, apartados, dinero recibido y reportes.
     else:
 
         total_caja = float(
-            df_ventas["ABONADO"].sum()
+            df_ventas[
+                "ABONADO"
+            ].sum()
         )
 
-        h1, h2, h3 = st.columns(3)
+        h1, h2, h3 = st.columns(
+            3
+        )
 
         with h1:
 
@@ -2654,57 +3541,63 @@ Consulte ventas, apartados, dinero recibido y reportes.
 
         st.markdown("---")
 
-        # ----------------------------------------------------
-        # BÚSQUEDA
-        # ----------------------------------------------------
-
         st.markdown(
             "### 🔎 Buscar una venta"
         )
 
-        f1, f2 = st.columns(2)
+        f1, f2 = st.columns(
+            2
+        )
 
         with f1:
 
-            filtro_cliente = st.text_input(
-                "👤 Nombre del cliente",
-                key="filtro_cliente",
+            filtro_cliente = (
+                st.text_input(
+                    "👤 Nombre del cliente",
+                    key="filtro_cliente",
+                )
             )
 
         with f2:
 
-            filtro_producto = st.text_input(
-                "📦 Producto",
-                key="filtro_producto",
+            filtro_producto = (
+                st.text_input(
+                    "📦 Producto",
+                    key="filtro_producto",
+                )
             )
 
-        df_filtrado = df_ventas.copy()
+        df_filtrado = (
+            df_ventas.copy()
+        )
 
         if filtro_cliente.strip():
 
-            df_filtrado = df_filtrado[
+            df_filtrado = (
                 df_filtrado[
-                    "CLIENTE"
+                    df_filtrado[
+                        "CLIENTE"
+                    ].str.contains(
+                        filtro_cliente,
+                        case=False,
+                        na=False,
+                    )
                 ]
-                .str.contains(
-                    filtro_cliente,
-                    case=False,
-                    na=False,
-                )
-            ]
+            )
 
         if filtro_producto.strip():
 
-            df_filtrado = df_filtrado[
+            df_filtrado = (
                 df_filtrado[
-                    "CATEGORIA"
+                    df_filtrado[
+                        "CATEGORIA"
+                    ].str.contains(
+                        filtro_producto,
+                        case=False,
+                        na=False,
+                    )
                 ]
-                .str.contains(
-                    filtro_producto,
-                    case=False,
-                    na=False,
-                )
-            ]
+            )
 
         st.dataframe(
             df_filtrado,
@@ -2713,10 +3606,6 @@ Consulte ventas, apartados, dinero recibido y reportes.
         )
 
         st.markdown("---")
-
-        # ----------------------------------------------------
-        # FOTOS
-        # ----------------------------------------------------
 
         st.markdown(
             "### 🖼️ Ver foto de un registro"
@@ -2729,19 +3618,25 @@ Consulte ventas, apartados, dinero recibido y reportes.
                 f"{r['CLIENTE']} | "
                 f"{r['CATEGORIA']}"
             )
-            for i, r in df_ventas.iterrows()
+            for i, r
+            in df_ventas.iterrows()
         ]
 
-        seleccion_foto = st.selectbox(
-            "Seleccione un registro",
-            opciones_fotos,
-            key="foto_historial",
+        seleccion_foto = (
+            st.selectbox(
+                "Seleccione un registro",
+                opciones_fotos,
+                key="foto_historial",
+            )
         )
 
         indice_foto = int(
             seleccion_foto
             .split(" | ")[0]
-            .replace("Fila ", "")
+            .replace(
+                "Fila ",
+                "",
+            )
         )
 
         ruta_foto = str(
@@ -2755,18 +3650,18 @@ Consulte ventas, apartados, dinero recibido y reportes.
 
         if (
             ruta_foto != "Sin foto"
-            and os.path.exists(ruta_foto)
+            and os.path.exists(
+                ruta_foto
+            )
         ):
 
             st.image(
                 ruta_foto,
-                caption=(
-                    str(
-                        df_ventas.loc[
-                            indice_foto,
-                            "CATEGORIA",
-                        ]
-                    )
+                caption=str(
+                    df_ventas.loc[
+                        indice_foto,
+                        "CATEGORIA",
+                    ]
                 ),
                 width=420,
             )
@@ -2779,10 +3674,6 @@ Consulte ventas, apartados, dinero recibido y reportes.
 
         st.markdown("---")
 
-        # ----------------------------------------------------
-        # DESCARGAR
-        # ----------------------------------------------------
-
         st.markdown(
             "### 📥 Descargar reporte"
         )
@@ -2791,17 +3682,15 @@ Consulte ventas, apartados, dinero recibido y reportes.
             "📥 DESCARGAR REPORTE CSV",
             df_ventas.to_csv(
                 index=False
-            ).encode("utf-8"),
+            ).encode(
+                "utf-8-sig"
+            ),
             "reporte_local_mesitas.csv",
             "text/csv",
             use_container_width=True,
         )
 
         st.markdown("---")
-
-        # ----------------------------------------------------
-        # ELIMINAR REGISTRO
-        # ----------------------------------------------------
 
         st.markdown(
             "### 🗑️ Corregir un registro"
@@ -2827,18 +3716,23 @@ Consulte ventas, apartados, dinero recibido y reportes.
                     f"{r['CLIENTE']} | "
                     f"${float(r['TOTAL']):,.2f}"
                 )
-                for i, r in df_ventas.iterrows()
+                for i, r
+                in df_ventas.iterrows()
             ]
 
-            registro_borrar = st.selectbox(
-                "Seleccione el registro",
-                opciones_borrar,
-                key="registro_borrar_historial",
+            registro_borrar = (
+                st.selectbox(
+                    "Seleccione el registro",
+                    opciones_borrar,
+                    key="registro_borrar_historial",
+                )
             )
 
-            confirmar_borrado = st.checkbox(
-                "⚠️ Confirmo que deseo eliminar este registro.",
-                key="confirmar_borrado_historial",
+            confirmar_borrado = (
+                st.checkbox(
+                    "⚠️ Confirmo que deseo eliminar este registro.",
+                    key="confirmar_borrado_historial",
+                )
             )
 
             if st.button(
@@ -2859,7 +3753,7 @@ Consulte ventas, apartados, dinero recibido y reportes.
                         .split(" | ")[0]
                         .replace(
                             "Fila ",
-                            ""
+                            "",
                         )
                     )
 
@@ -2873,23 +3767,31 @@ Consulte ventas, apartados, dinero recibido y reportes.
                     )
 
                     if (
-                        foto_borrar != "Sin foto"
+                        foto_borrar
+                        != "Sin foto"
                         and os.path.exists(
                             foto_borrar
                         )
                     ):
 
                         try:
+
                             os.remove(
                                 foto_borrar
                             )
+
                         except Exception:
+
                             pass
 
-                    df_ventas = df_ventas.drop(
-                        indice_borrar
-                    ).reset_index(
-                        drop=True
+                    df_ventas = (
+                        df_ventas
+                        .drop(
+                            indice_borrar
+                        )
+                        .reset_index(
+                            drop=True
+                        )
                     )
 
                     guardar_csv(
@@ -2914,30 +3816,30 @@ Consulte ventas, apartados, dinero recibido y reportes.
 #                 PIE DE PÁGINA
 # ============================================================
 
-st.markdown(
+html(
     """
-<div style="
-text-align:center;
-margin-top:40px;
-padding:20px;
-color:#64748b;
-border-top:1px solid #e2e8f0;
-font-size:15px;
-">
+    <div style="
+        text-align:center;
+        margin-top:40px;
+        padding:20px;
+        color:#64748b;
+        border-top:1px solid #e2e8f0;
+        font-size:15px;
+    ">
 
-<b>🛏️ LOCAL MESITAS</b>
+        <b>🛏️ LOCAL MESITAS</b>
 
-<br>
+        <br>
 
-Sistema POS • Ventas • Apartados • Inventario • Caja
+        Sistema POS • Ventas • Apartados
+        • Inventario • Caja
 
-<br>
+        <br>
 
-<span style="font-size:13px;">
-Diseñado para ser simple y fácil de usar
-</span>
+        <span style="font-size:13px;">
+            Diseñado para ser simple y fácil de usar
+        </span>
 
-</div>
-    """,
-    unsafe_allow_html=True,
+    </div>
+    """
 )
