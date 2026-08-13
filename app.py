@@ -35,33 +35,53 @@ else:
     ])
     df_ventas.to_csv(FILE_VENTAS, index=False)
 
-# Estilos visuales amigables
+# --- ESTILOS VISUALES PREMIUM ---
 st.markdown("""
     <style>
-    .stApp { background-color: #f8f9fa; }
+    .stApp { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    
     .header-box {
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        padding: 20px;
-        border-radius: 12px;
+        background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+        padding: 25px;
+        border-radius: 16px;
         color: white;
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
+    
+    .card-resumen {
+        background: white;
+        padding: 20px;
+        border-radius: 14px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        border-left: 5px solid #203a43;
+        margin-bottom: 15px;
+    }
+    
     .stButton>button {
-        background: #1e3c72;
+        background: linear-gradient(135deg, #1f4068 0%, #162447 100%);
         color: white;
-        border-radius: 8px;
-        font-weight: bold;
+        border-radius: 10px;
+        font-weight: 600;
         width: 100%;
-        height: 45px;
+        height: 48px;
+        border: none;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        transition: 0.3s;
+    }
+    
+    .stButton>button:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
     }
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
     <div class="header-box">
-        <h1 style="color:white; margin:0;">🏪 Local Mesitas - Control de Inventario y Ventas</h1>
-        <p style="margin:5px 0 0 0;">Sistema ágil, rápido y simplificado</p>
+        <h1 style="color:white; margin:0; font-weight: 700;">🏪 Local Mesitas</h1>
+        <p style="margin:8px 0 0 0; font-size: 16px; opacity: 0.85;">Sistema Inteligente de Inventarios y Cierre de Caja</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -69,13 +89,13 @@ st.markdown("""
 stock_critico = df_inv[df_inv["STOCK"] <= 2]
 if not stock_critico.empty:
     productos_bajos = ", ".join([f"**{row['CATEGORIA']}** ({row['STOCK']} ud.)" for _, row in stock_critico.iterrows()])
-    st.warning(f"🚨 **ATENCIÓN - STOCK BAJO:** {productos_bajos}. ¡Reabastece pronto!")
+    st.warning(f"🚨 **ATENCIÓN - STOCK BAJO:** {productos_bajos}. ¡Reabastece pronto para no perder ventas!")
 
 tab_ops, tab_inventario, tab_historial = st.tabs(["⚡ Vender y Operaciones", "🛠️ Inventario y Catálogo", "📜 Historial y Cierre de Caja"])
 
 with tab_ops:
     # --- VISTA GENERAL DE INVENTARIO ---
-    st.markdown("### 📊 Estado Rápido del Stock")
+    st.markdown("### 📊 Estado Actual del Inventario")
     
     iconos = {"Camas": "🛏️", "Colchones": "💤", "Armarios": "🚪", "Pajaritas": "🎀"}
     cols = st.columns(len(df_inv) if len(df_inv) > 0 else 1)
@@ -89,13 +109,13 @@ with tab_ops:
         with cols[idx]:
             st.metric(
                 label=f"{ico} {cat}", 
-                value=f"{stk} ud.", 
-                delta=f"${prc:,.2f}"
+                value=f"{stk} unidades", 
+                delta=f"${prc:,.2f} c/u"
             )
 
     st.markdown("---")
     
-    col_vender, col_ticket = st.columns(2)
+    col_vender, col_ticket = st.columns([1.1, 0.9])
     
     # --- REGISTRAR VENTA ---
     with col_vender:
@@ -115,18 +135,18 @@ with tab_ops:
                 metodo_pago = st.selectbox("3️⃣ Método de Pago", ["Efectivo", "Transferencia", "Tarjeta", "Crédito / Cuotas"])
                 
                 st.markdown("---")
-                st.markdown("**4️⃣ Datos del Cliente (Opcional pero recomendado):**")
+                st.markdown("**4️⃣ Datos del Cliente:**")
                 cliente_nom = st.text_input("Nombre y Apellido", value="Cliente General")
                 cliente_ced = st.text_input("Cédula / DNI", value="S/N")
                 cliente_tel = st.text_input("Teléfono", value="")
-                cliente_cor = st.text_input("Correo", value="")
+                cliente_cor = st.text_input("Correo electrónico", value="")
                 
                 total_calculado = float(cant_vender) * float(precio_unitario)
                 
                 st.markdown(f"""
-                    <div style="background-color: #eef2f5; padding: 10px; border-radius: 8px; text-align: center; margin: 10px 0;">
-                        <p style="margin:0; font-size: 13px; color: #555;">Precio unitario: ${precio_unitario:,.2f}</p>
-                        <h3 style="margin:0; color: #1e3c72;">TOTAL A COBRAR: <b>${total_calculado:,.2f}</b></h3>
+                    <div style="background-color: #ffffff; border: 1px solid #e0e0e0; padding: 12px; border-radius: 10px; text-align: center; margin: 12px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+                        <p style="margin:0; font-size: 13px; color: #666;">Precio unitario: ${precio_unitario:,.2f}</p>
+                        <h2 style="margin:4px 0 0 0; color: #1f4068;">TOTAL: <b>${total_calculado:,.2f}</b></h2>
                     </div>
                 """, unsafe_allow_html=True)
                 
@@ -165,16 +185,16 @@ with tab_ops:
 💳 Método de pago: {metodo_pago}
 💰 TOTAL PAGADO: ${total_calculado:,.2f}
 --------------------------------
-¡Gracias por su compra!"""
+¡Gracias por su preferencia!"""
                         st.rerun()
 
     # --- RECIBO RÁPIDO PARA COMPARTIR ---
     with col_ticket:
         st.markdown("### 🧾 Comprobante para WhatsApp")
         if "ultimo_recibo" in st.session_state:
-            st.text_area("Copia este mensaje listo para enviar:", value=st.session_state["ultimo_recibo"], height=230)
+            st.text_area("Copia este mensaje listo para enviar:", value=st.session_state["ultimo_recibo"], height=310)
         else:
-            st.info("💡 Aquí aparecerá el comprobante automático de la última venta lista para que la copies y envíes por WhatsApp.")
+            st.info("💡 Aquí aparecerá el comprobante automático de la última venta listo para copiar y enviar por WhatsApp con un solo toque.")
 
 with tab_inventario:
     st.markdown("### 🛠️ Administración de Inventario y Productos")
@@ -239,28 +259,32 @@ with tab_inventario:
         st.info("Ingresa la clave `1234` para desbloquear.")
 
 with tab_historial:
-    st.markdown("### 📜 Historial y Cierre de Caja por Método de Pago")
+    st.markdown("### 📜 Historial y Cierre de Caja")
     
     if os.path.exists(FILE_VENTAS):
         df_v_hist = pd.read_csv(FILE_VENTAS)
         if df_v_hist.empty:
             st.info("Aún no hay ventas registradas.")
         else:
-            # --- MEJORA 3: RESUMEN DE CAJA POR MÉTODO DE PAGO ---
-            st.markdown("#### 💵 Cierre de Caja Actual (Ingresos por Método de Pago)")
-            
+            # --- CIERRE DE CAJA VISUAL ---
+            tot_general = df_v_hist["TOTAL"].sum() if "TOTAL" in df_v_hist.columns else 0
             tot_efectivo = df_v_hist[df_v_hist["METODO_PAGO"] == "Efectivo"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
             tot_trans = df_v_hist[df_v_hist["METODO_PAGO"] == "Transferencia"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
             tot_tarjeta = df_v_hist[df_v_hist["METODO_PAGO"] == "Tarjeta"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
             tot_credito = df_v_hist[df_v_hist["METODO_PAGO"] == "Crédito / Cuotas"]["TOTAL"].sum() if "METODO_PAGO" in df_v_hist.columns else 0
-            tot_general = df_v_hist["TOTAL"].sum() if "TOTAL" in df_v_hist.columns else 0
 
-            m1, m2, m3, m4, m5 = st.columns(5)
+            st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #1f4068 0%, #162447 100%); padding: 20px; border-radius: 14px; text-align: center; color: white; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                    <p style="margin:0; font-size: 14px; letter-spacing: 1px; opacity: 0.9;">TOTAL GENERAL DE VENTAS ACUMULADAS</p>
+                    <h1 style="margin:6px 0 0 0; font-size: 42px; color: #ffd369;">${tot_general:,.2f}</h1>
+                </div>
+            """, unsafe_allow_html=True)
+
+            m1, m2, m3, m4 = st.columns(4)
             m1.metric("💵 Efectivo", f"${tot_efectivo:,.2f}")
             m2.metric("🏦 Transf.", f"${tot_trans:,.2f}")
             m3.metric("💳 Tarjeta", f"${tot_tarjeta:,.2f}")
             m4.metric("📄 Crédito", f"${tot_credito:,.2f}")
-            m5.metric("💰 TOTAL", f"${tot_general:,.2f}")
             
             st.markdown("---")
             busqueda = st.text_input("🔍 Buscar por Cliente o Cédula:")
