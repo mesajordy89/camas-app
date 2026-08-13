@@ -3,16 +3,20 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# Configuración de página
-st.set_page_config(page_title="CAMAS - Control de Inventario y Ventas", page_icon="🛏️", layout="wide")
+# Configuración de página con layout amplio
+st.set_page_config(
+    page_title="CAMAS - Control de Inventario", 
+    page_icon="🛏️", 
+    layout="wide"
+)
 
 CLAVE_ADMIN = "1234"
 
-# Archivos locales de almacenamiento
+# Archivos de datos
 FILE_INV = "inventario.csv"
 FILE_VENTAS = "ventas.csv"
 
-# Cargar o crear Inventario (Categoría, Stock, Precio)
+# Cargar o crear Inventario
 if os.path.exists(FILE_INV):
     df_inv = pd.read_csv(FILE_INV)
     if "PRECIO" not in df_inv.columns:
@@ -36,100 +40,189 @@ else:
     ])
     df_ventas.to_csv(FILE_VENTAS, index=False)
 
-st.title("🛏️ Sistema de Control de Inventario y Ventas - CAMAS")
-
-def mostrar_categoria(nombre_cat, icono):
-    st.subheader(f"{icono} Gestión de {nombre_cat}")
+# --- ESTILOS CSS PERSONALIZADOS (DISEÑO PREMIUM) ---
+st.markdown("""
+    <style>
+    /* Estilo del fondo y contenedor principal */
+    .stApp {
+        background-color: #f4f6f9;
+    }
     
+    /* Encabezado principal */
+    .title-banner {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        padding: 24px;
+        border-radius: 15px;
+        color: white;
+        text-align: center;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .title-banner h1 {
+        color: #ffffff !important;
+        font-weight: 800;
+        margin: 0;
+    }
+    
+    /* Tarjetas de métricas */
+    div[data-testid="stMetric"] {
+        background-color: #ffffff;
+        border-radius: 12px;
+        padding: 15px 20px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        border-left: 6px solid #2a5298;
+    }
+
+    /* Estilizado de pestañas */
+    button[data-baseweb="tab"] {
+        font-size: 16px !important;
+        font-weight: bold !important;
+        border-radius: 10px 10px 0 0 !important;
+        padding: 10px 20px !important;
+    }
+    
+    /* Cajas de secciones */
+    .card-box {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        margin-bottom: 20px;
+    }
+    
+    /* Botones primarios */
+    .stButton>button {
+        background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        height: 3em;
+        font-size: 16px;
+        font-weight: bold;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 10px rgba(42,82,152,0.3);
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 15px rgba(42,82,152,0.4);
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Banner superior
+st.markdown("""
+    <div class="title-banner">
+        <h1>🛏️ Sistema de Gestión e Inventario - CAMAS</h1>
+        <p style="margin-top: 5px; opacity: 0.9;">Control en tiempo real de productos, ventas y clientes</p>
+    </div>
+""", unsafe_allow_html=True)
+
+# Función para renderizar la interfaz de cada categoría
+def mostrar_categoria(nombre_cat, icono):
     fila = df_inv[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper()]
     stock_actual = int(fila["STOCK"].values[0]) if not fila.empty else 0
     precio_actual = float(fila["PRECIO"].values[0]) if not fila.empty else 0.0
     
-    # Métricas e indicadores
-    col_m1, col_m2 = st.columns(2)
-    col_m1.metric(f"Unidades Disponibles de {nombre_cat}", f"{stock_actual} unidades")
-    col_m2.metric(f"Precio Unitario", f"${precio_actual:,.2f}")
+    # Métricas superiores vistosas
+    m1, m2, m3 = st.columns(3)
+    m1.metric("📦 Categoría", f"{icono} {nombre_cat}")
+    m2.metric("📊 Unidades en Stock", f"{stock_actual} ud.")
+    m3.metric("🏷️ Precio Unitario", f"${precio_actual:,.2f}")
     
-    # Alerta de Stock Bajo
     if stock_actual <= 2:
-        st.warning(f"⚠️ ¡Atención! Stock bajo en {nombre_cat}. Solo quedan {stock_actual} unidades.")
+        st.error(f"⚠️ **ALERTA DE STOCK BAJO:** Quedan solo {stock_actual} unidades disponibles de {nombre_cat}.")
     
-    st.markdown("---")
+    st.markdown("<br>", unsafe_allow_html=True)
     col_in, col_out = st.columns(2)
     
-    # --- 📥 ENTRADA Y PRECIOS (SOLO ADMIN CON CLAVE) ---
+    # --- PANEL 1: REGISTRAR ENTRADA (ADMIN) ---
     with col_in:
-        st.markdown("##### 📥 Recibir Mercancía y Configurar Precio (Admin)")
-        clave = st.text_input(f"Clave Admin ({nombre_cat})", type="password", key=f"pass_{nombre_cat}")
-        
-        if clave == CLAVE_ADMIN:
-            with st.form(key=f"form_sumar_{nombre_cat}"):
-                cant_sumar = st.number_input("¿Cuántas llegaron?", min_value=0, step=1)
-                nuevo_precio = st.number_input("Precio Unitario ($)", min_value=0.0, value=precio_actual, step=5.0)
-                
-                if st.form_submit_button("➕ Actualizar Inventario"):
-                    idx = df_inv[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper()].index
-                    if not idx.empty:
-                        df_inv.loc[idx, "STOCK"] += cant_sumar
-                        df_inv.loc[idx, "PRECIO"] = nuevo_precio
-                        df_inv.to_csv(FILE_INV, index=False)
-                    st.success(f"¡Inventario de {nombre_cat} actualizado!")
-                    st.rerun()
-        elif clave != "":
-            st.error("Clave incorrecta")
+        with st.container():
+            st.markdown("### 📥 Recepción de Mercancía")
+            st.caption("Acceso exclusivo para administradores")
+            
+            clave = st.text_input("🔑 Clave de Autorización", type="password", key=f"pass_{nombre_cat}")
+            
+            if clave == CLAVE_ADMIN:
+                st.success("🔓 Sesión de administrador activa")
+                with st.form(key=f"form_sumar_{nombre_cat}"):
+                    cant_sumar = st.number_input("Cantidad que ingresa", min_value=0, step=1)
+                    nuevo_precio = st.number_input("Precio Unitario ($)", min_value=0.0, value=precio_actual, step=5.0)
+                    
+                    if st.form_submit_button("➕ GUARDAR E INCREMENTAR STOCK"):
+                        idx = df_inv[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper()].index
+                        if not idx.empty:
+                            df_inv.loc[idx, "STOCK"] += cant_sumar
+                            df_inv.loc[idx, "PRECIO"] = nuevo_precio
+                            df_inv.to_csv(FILE_INV, index=False)
+                        st.success("¡Inventario actualizado correctamente!")
+                        st.rerun()
+            elif clave != "":
+                st.error("❌ Clave incorrecta")
+            else:
+                st.info("💡 Ingrese la clave para modificar inventario o precio.")
 
-    # --- 🛒 REGISTRAR VENTA (EMPLEADAS) ---
+    # --- PANEL 2: REGISTRAR VENTA ---
     with col_out:
-        st.markdown("##### 🛒 Registrar Venta")
-        with st.form(key=f"form_venta_{nombre_cat}"):
-            cant_vender = st.number_input("Cantidad Vendida", min_value=1, step=1)
-            metodo_pago = st.selectbox("Método de Pago", ["Efectivo", "Transferencia", "Tarjeta", "Crédito / Cuotas"])
+        with st.container():
+            st.markdown("### 🛒 Registrar Nueva Venta")
+            st.caption("Módulo para registro rápido de facturación")
             
-            st.markdown("---")
-            st.markdown("**Datos del Cliente:**")
-            cliente_nom = st.text_input("Nombre y Apellido")
-            cliente_ced = st.text_input("Cédula / DNI")
-            cliente_tel = st.text_input("Número de Teléfono")
-            cliente_cor = st.text_input("Correo Electrónico")
-            
-            total_calculado = cant_vender * precio_actual
-            st.markdown(f"### **Total a cobrar: ${total_calculado:,.2f}**")
-            
-            btn_vender = st.form_submit_button("🛍️ Confirmar Venta")
-            
-            if btn_vender:
-                if cant_vender > stock_actual:
-                    st.error(f"No hay suficiente inventario. Solo quedan {stock_actual} unidades.")
-                elif cliente_nom.strip() == "":
-                    st.warning("Debes ingresar el nombre del cliente.")
-                else:
-                    # Descontar del inventario
-                    idx = df_inv[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper()].index
-                    if not idx.empty:
-                        df_inv.loc[idx, "STOCK"] -= cant_vender
-                        df_inv.to_csv(FILE_INV, index=False)
-                    
-                    # Registrar venta con detalle financiero
-                    nueva_venta = pd.DataFrame([{
-                        "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "CATEGORIA": nombre_cat,
-                        "CANTIDAD": cant_vender,
-                        "PRECIO_UNITARIO": precio_actual,
-                        "TOTAL": total_calculado,
-                        "METODO_PAGO": metodo_pago,
-                        "CLIENTE": cliente_nom,
-                        "CEDULA": cliente_ced,
-                        "TELEFONO": cliente_tel,
-                        "CORREO": cliente_cor
-                    }])
-                    
-                    df_v_actualizado = pd.concat([df_ventas, nueva_venta], ignore_index=True)
-                    df_v_actualizado.to_csv(FILE_VENTAS, index=False)
-                    
-                    st.success(f"¡Venta confirmada! Se cobraron ${total_calculado:,.2f} a {cliente_nom}.")
-                    st.rerun()
+            with st.form(key=f"form_venta_{nombre_cat}"):
+                cant_vender = st.number_input("Cantidad Vendida", min_value=1, step=1)
+                metodo_pago = st.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta Débito/Crédito", "Crédito / Cuotas"])
+                
+                st.markdown("---")
+                st.markdown("**👤 Información del Cliente**")
+                c1, c2 = st.columns(2)
+                cliente_nom = c1.text_input("Nombre y Apellido")
+                cliente_ced = c2.text_input("Cédula / DNI")
+                cliente_tel = c1.text_input("Teléfono de Contacto")
+                cliente_cor = c2.text_input("Correo Electrónico")
+                
+                total_calculado = cant_vender * precio_actual
+                
+                st.markdown(f"""
+                    <div style="background-color: #eef2f5; padding: 15px; border-radius: 10px; text-align: center; margin: 15px 0;">
+                        <h3 style="margin:0; color: #1e3c72;">Total a Cobrar: <b>${total_calculado:,.2f}</b></h3>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                btn_vender = st.form_submit_button("🛍️ CONFIRMAR Y REGISTRAR VENTA")
+                
+                if btn_vender:
+                    if cant_vender > stock_actual:
+                        st.error(f"❌ Inventario insuficiente. Disponible: {stock_actual} unidades.")
+                    elif cliente_nom.strip() == "":
+                        st.warning("⚠️ El nombre del cliente es obligatorio.")
+                    else:
+                        # Actualizar stock
+                        idx = df_inv[df_inv["CATEGORIA"].astype(str).str.upper() == nombre_cat.upper()].index
+                        if not idx.empty:
+                            df_inv.loc[idx, "STOCK"] -= cant_vender
+                            df_inv.to_csv(FILE_INV, index=False)
+                        
+                        # Registrar transacción
+                        nueva_venta = pd.DataFrame([{
+                            "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "CATEGORIA": nombre_cat,
+                            "CANTIDAD": cant_vender,
+                            "PRECIO_UNITARIO": precio_actual,
+                            "TOTAL": total_calculado,
+                            "METODO_PAGO": metodo_pago,
+                            "CLIENTE": cliente_nom,
+                            "CEDULA": cliente_ced,
+                            "TELEFONO": cliente_tel,
+                            "CORREO": cliente_cor
+                        }])
+                        
+                        df_v_actualizado = pd.concat([df_ventas, nueva_venta], ignore_index=True)
+                        df_v_actualizado.to_csv(FILE_VENTAS, index=False)
+                        
+                        st.success(f"¡Venta confirmada a {cliente_nom} por ${total_calculado:,.2f}!")
+                        st.rerun()
 
-# Pestañas Principales
+# Pestañas de la aplicación
 tab_camas, tab_colchones, tab_armarios, tab_pajaritas, tab_historial = st.tabs([
     "🛏️ Camas", "💤 Colchones", "🚪 Armarios", "🎀 Pajaritas", "📜 Historial de Ventas"
 ])
@@ -147,20 +240,24 @@ with tab_pajaritas:
     mostrar_categoria("Pajaritas", "🎀")
 
 with tab_historial:
-    st.subheader("📜 Historial de Ventas y Finanzas")
+    st.markdown("### 📜 Panel de Historial y Reportes Financieros")
     
     if os.path.exists(FILE_VENTAS):
         df_v_hist = pd.read_csv(FILE_VENTAS)
         
         if df_v_hist.empty:
-            st.info("Aún no hay ventas registradas.")
+            st.info("Aún no se han registrado ventas en el sistema.")
         else:
-            # Resumen Financiero Superior
+            # Resumen acumulado
             total_recaudado = df_v_hist["TOTAL"].sum() if "TOTAL" in df_v_hist.columns else 0
-            st.metric("Total Recaudado en Ventas", f"${total_recaudado:,.2f}")
             
-            # Buscador
-            busqueda = st.text_input("🔍 Buscar por Nombre o Cédula del Cliente:")
+            k1, k2 = st.columns(2)
+            k1.metric("💰 Recaudación Total", f"${total_recaudado:,.2f}")
+            k2.metric("🛍️ Total Transacciones", f"{len(df_v_hist)} ventas")
+            
+            st.markdown("---")
+            busqueda = st.text_input("🔍 Buscar venta por Cliente o Cédula:")
+            
             if busqueda:
                 df_filtrado = df_v_hist[
                     df_v_hist["CLIENTE"].astype(str).str.contains(busqueda, case=False, na=False) |
@@ -171,12 +268,12 @@ with tab_historial:
                 
             st.dataframe(df_filtrado, use_container_width=True)
             
-            # Botón de Descargar a Excel/CSV
+            # Descargar Excel/CSV
             csv_data = df_v_hist.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="📥 Descargar Reporte Completo de Ventas (Excel/CSV)",
+                label="📥 EXPORTAR REPORTE A EXCEL (CSV)",
                 data=csv_data,
-                file_name=f"reporte_ventas_{datetime.now().strftime('%Y%m%d')}.csv",
+                file_name=f"ventas_camas_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime='text/csv'
             )
     else:
