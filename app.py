@@ -11,6 +11,11 @@ CLAVE_ADMIN = "1234"
 
 FILE_INV = "inventario.csv"
 FILE_VENTAS = "ventas.csv"
+CARPETA_FOTOS = "fotos_ventas"
+
+# Crear carpeta para guardar las fotos si no existe
+if not os.path.exists(CARPETA_FOTOS):
+    os.makedirs(CARPETA_FOTOS)
 
 # --- SISTEMA DE BLOQUEO CON CONTRASEÑA ---
 if "autenticado" not in st.session_state:
@@ -77,14 +82,18 @@ if os.path.exists(FILE_VENTAS):
     if "DIRECCION" not in df_ventas.columns:
         df_ventas["DIRECCION"] = "S/N"
         df_ventas.to_csv(FILE_VENTAS, index=False)
+    if "FOTO" not in df_ventas.columns:
+        df_ventas["FOTO"] = "Sin foto"
+        df_ventas.to_csv(FILE_VENTAS, index=False)
 else:
     df_ventas = pd.DataFrame(columns=[
         "FECHA", "CATEGORIA", "CANTIDAD", "PRECIO_UNITARIO", "TOTAL", 
-        "ABONADO", "SALDO_PENDIENTE", "METODO_PAGO", "CLIENTE", "CEDULA", "TELEFONO", "CORREO", "DIRECCION", "ESTADO"
+        "ABONADO", "SALDO_PENDIENTE", "METODO_PAGO", "CLIENTE", "CEDULA", 
+        "TELEFONO", "CORREO", "DIRECCION", "ESTADO", "FOTO"
     ])
     df_ventas.to_csv(FILE_VENTAS, index=False)
 
-# --- ESTILOS VISUALES GRANDES Y LLAMATIVOS ---
+# --- ESTILOS VISUALES ---
 st.markdown("""
     <style>
     .stApp { background-color: #f7f9fc; font-family: 'Segoe UI', Roboto, sans-serif; }
@@ -136,7 +145,7 @@ with col_logout:
 st.markdown("""
     <div class="header-box">
         <h1 style="color:white; margin:0; font-size: 32px; font-weight: 800;">🏪 LOCAL MESITAS</h1>
-        <p style="margin:10px 0 0 0; font-size: 18px; opacity: 0.9;">Sistema de Caja, Ventas y Apartados con Recibos Claros</p>
+        <p style="margin:10px 0 0 0; font-size: 18px; opacity: 0.9;">Sistema de Caja, Ventas, Apartados y Registro Fotográfico</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -186,6 +195,8 @@ with tab_ops:
             correo = st.text_input("Correo electrónico", value="")
             direccion = st.text_input("Dirección de Entrega", value="")
             
+            foto_subida = st.file_uploader("📸 Subir Foto de la Cama o Producto (Opcional)", type=["jpg", "png", "jpeg"])
+            
             total = cant * precio_unit
             st.markdown(f"### Total a Cobrar: ${total:,.2f}")
             
@@ -193,22 +204,30 @@ with tab_ops:
                 if cant > stock_disp:
                     st.error(f"❌ Stock insuficiente. Solo hay {stock_disp} unidades.")
                 else:
+                    ruta_foto_guardada = "Sin foto"
+                    if foto_subida is not None:
+                        nombre_archivo = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{foto_subida.name}"
+                        ruta_foto_guardada = os.path.join(CARPETA_FOTOS, nombre_archivo)
+                        with open(ruta_foto_guardada, "wb") as f:
+                            f.write(foto_subida.getbuffer())
+
                     df_inv.loc[df_inv["CATEGORIA"] == categoria_sel, "STOCK"] -= cant
                     df_inv.to_csv(FILE_INV, index=False)
                     
                     df_actual_v = pd.read_csv(FILE_VENTAS)
-                    if "DIRECCION" not in df_actual_v.columns:
-                        df_actual_v["DIRECCION"] = "S/N"
+                    if "FOTO" not in df_actual_v.columns:
+                        df_actual_v["FOTO"] = "Sin foto"
                         
                     nueva = pd.DataFrame([{
                         "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "CATEGORIA": categoria_sel, "CANTIDAD": cant, "PRECIO_UNITARIO": precio_unit,
                         "TOTAL": total, "ABONADO": total, "SALDO_PENDIENTE": 0.0,
                         "METODO_PAGO": pago, "CLIENTE": cliente, "CEDULA": celda,
-                        "TELEFONO": telefono, "CORREO": correo, "DIRECCION": direccion, "ESTADO": "Pagado y Entregado"
+                        "TELEFONO": telefono, "CORREO": correo, "DIRECCION": direccion, 
+                        "ESTADO": "Pagado y Entregado", "FOTO": ruta_foto_guardada
                     }])
                     pd.concat([df_actual_v, nueva], ignore_index=True).to_csv(FILE_VENTAS, index=False)
-                    st.success("¡Venta procesada con éxito!")
+                    st.success("¡Venta procesada con éxito y foto guardada!")
                     st.rerun()
 
 # ================= TAB 2: APARTADOS Y ABONOS =================
@@ -234,6 +253,8 @@ with tab_apartados:
                 ap_corr = st.text_input("Correo electrónico")
                 ap_dir = st.text_input("Dirección exacta")
                 
+                ap_foto = st.file_uploader("📸 Subir Foto de la Cama o Producto Apartado (Opcional)", type=["jpg", "png", "jpeg"], key="foto_ap")
+                
                 precio_p = float(p_info["PRECIO"])
                 tot_p = ap_cant * precio_p
                 saldo_p = tot_p - ap_abono
@@ -244,9 +265,16 @@ with tab_apartados:
                     if ap_cliente.strip() == "":
                         st.warning("Por favor ingresa el nombre del cliente.")
                     else:
+                        ruta_foto_ap = "Sin foto"
+                        if ap_foto is not None:
+                            nombre_archivo = f"ap_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{ap_foto.name}"
+                            ruta_foto_ap = os.path.join(CARPETA_FOTOS, nombre_archivo)
+                            with open(ruta_foto_ap, "wb") as f:
+                                f.write(ap_foto.getbuffer())
+
                         df_actual_v = pd.read_csv(FILE_VENTAS)
-                        if "DIRECCION" not in df_actual_v.columns:
-                            df_actual_v["DIRECCION"] = "S/N"
+                        if "FOTO" not in df_actual_v.columns:
+                            df_actual_v["FOTO"] = "Sin foto"
                             
                         nuevo_ap = pd.DataFrame([{
                             "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -254,7 +282,8 @@ with tab_apartados:
                             "TOTAL": tot_p, "ABONADO": ap_abono, "SALDO_PENDIENTE": max(0.0, saldo_p),
                             "METODO_PAGO": "Efectivo", "CLIENTE": ap_cliente, "CEDULA": ap_ced,
                             "TELEFONO": ap_tel, "CORREO": ap_corr, "DIRECCION": ap_dir, 
-                            "ESTADO": "Pagado y Entregado" if saldo_p <= 0 else "Apartado (Pendiente)"
+                            "ESTADO": "Pagado y Entregado" if saldo_p <= 0 else "Apartado (Pendiente)",
+                            "FOTO": ruta_foto_ap
                         }])
                         
                         if saldo_p <= 0:
@@ -274,6 +303,8 @@ with tab_apartados:
     if not df_v.empty and "ESTADO" in df_v.columns:
         if "DIRECCION" not in df_v.columns:
             df_v["DIRECCION"] = "S/N"
+        if "FOTO" not in df_v.columns:
+            df_v["FOTO"] = "Sin foto"
             
         pendientes = df_v[df_v["ESTADO"].str.contains("Apartado", case=False, na=False)]
         
@@ -293,21 +324,32 @@ with tab_apartados:
                 idx_sel = int(recibo_sel.split(" ➔ ")[0].replace("Fila ", ""))
                 r_data = df_v.loc[idx_sel]
                 
-                st.markdown(f"""
-                    <div class="card-resibo">
-                        <h2 style="color: #ff416c; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px;">🧾 RECIBO DE APARTADO - LOCAL MESITAS</h2>
-                        <p style="font-size: 16px; margin: 5px 0;"><b>📅 Fecha de Registro:</b> {r_data['FECHA']}</p>
-                        <p style="font-size: 16px; margin: 5px 0;"><b>👤 Cliente:</b> {r_data['CLIENTE']}</p>
-                        <p style="font-size: 16px; margin: 5px 0;"><b>📞 Teléfono:</b> {r_data['TELEFONO']} | <b>🆔 Cédula:</b> {r_data['CEDULA']}</p>
-                        <p style="font-size: 16px; margin: 5px 0;"><b>📍 Dirección:</b> {r_data['DIRECCION']}</p>
-                        <hr style="border: 0; border-top: 1px dashed #ccc; margin: 15px 0;">
-                        <p style="font-size: 16px; margin: 5px 0;"><b>📦 Producto:</b> {r_data['CANTIDAD']}x {r_data['CATEGORIA']}</p>
-                        <p style="font-size: 18px; margin: 5px 0; color: #333;"><b>💰 Valor Total:</b> ${r_data['TOTAL']:,.2f}</p>
-                        <p style="font-size: 18px; margin: 5px 0; color: #11998e;"><b>✅ Total Abonado:</b> ${r_data['ABONADO']:,.2f}</p>
-                        <p style="font-size: 20px; margin: 10px 0; color: #ff4b2b;"><b>🔴 SALDO PENDIENTE: ${r_data['SALDO_PENDIENTE']:,.2f}</b></p>
-                    </div>
-                """, unsafe_allow_html=True)
+                col_recibo_txt, col_recibo_img = st.columns([1.5, 1])
                 
+                with col_recibo_txt:
+                    st.markdown(f"""
+                        <div class="card-resibo">
+                            <h2 style="color: #ff416c; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px;">🧾 RECIBO DE APARTADO</h2>
+                            <p style="font-size: 15px; margin: 4px 0;"><b>📅 Fecha:</b> {r_data['FECHA']}</p>
+                            <p style="font-size: 15px; margin: 4px 0;"><b>👤 Cliente:</b> {r_data['CLIENTE']}</p>
+                            <p style="font-size: 15px; margin: 4px 0;"><b>📞 Teléfono:</b> {r_data['TELEFONO']} | <b>🆔 Cédula:</b> {r_data['CEDULA']}</p>
+                            <p style="font-size: 15px; margin: 4px 0;"><b>📍 Dirección:</b> {r_data['DIRECCION']}</p>
+                            <hr style="border: 0; border-top: 1px dashed #ccc; margin: 10px 0;">
+                            <p style="font-size: 15px; margin: 4px 0;"><b>📦 Producto:</b> {r_data['CANTIDAD']}x {r_data['CATEGORIA']}</p>
+                            <p style="font-size: 16px; margin: 4px 0;"><b>💰 Valor Total:</b> ${r_data['TOTAL']:,.2f}</p>
+                            <p style="font-size: 16px; margin: 4px 0; color: #11998e;"><b>✅ Abonado:</b> ${r_data['ABONADO']:,.2f}</p>
+                            <p style="font-size: 18px; margin: 8px 0; color: #ff4b2b;"><b>🔴 SALDO: ${r_data['SALDO_PENDIENTE']:,.2f}</b></p>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_recibo_img:
+                    st.markdown("#### 🖼️ Foto del Producto")
+                    foto_path = str(r_data.get("FOTO", "Sin foto"))
+                    if foto_path != "Sin foto" and os.path.exists(foto_path):
+                        st.image(foto_path, caption=f"{r_data['CATEG']} - {r_data['CLIENTE']}", use_column_width=True)
+                    else:
+                        st.info("Sin foto adjunta en este registro.")
+
                 with st.form(f"form_abono_{idx_sel}"):
                     st.markdown("#### 💸 Registrar nuevo abono a este recibo")
                     cant_abonar = st.number_input(f"¿Cuánto dinero trae {r_data['CLIENTE']} hoy? ($)", min_value=0.0, max_value=float(r_data['SALDO_PENDIENTE']), value=float(r_data['SALDO_PENDIENTE']), step=5.0)
@@ -329,14 +371,14 @@ with tab_apartados:
                                 df_inv.to_csv(FILE_INV, index=False)
                                 
                             st.session_state["msg_exito"] = f"""
-                                <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; border-radius: 16px; text-align: center; color: white; margin: 15px 0; box-shadow: 0 10px 25px rgba(0,0,0,0.15);">
+                                <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 30px; border-radius: 16px; text-align: center; color: white; margin: 15px 0;">
                                     <h1 style="margin:0; font-size: 28px;">🎉 ¡DEUDA SALDADA!</h1>
                                     <h3 style="margin:10px 0;">EL CLIENTE <b>{r_data['CLIENTE'].upper()}</b> TERMINÓ DE PAGAR.</h3>
                                     <p style="font-size: 20px; margin:0;">📦 <b>ENTREGUE EL PRODUCTO:</b> {cant_entregar}x {c_prod}</p>
                                 </div>
                             """
                         else:
-                            st.success(f"¡Abono registrado con éxito! Nuevo saldo pendiente: ${nuevo_saldo:,.2f}")
+                            st.success(f"¡Abono registrado! Nuevo saldo pendiente: ${nuevo_saldo:,.2f}")
                             
                         df_v.to_csv(FILE_VENTAS, index=False)
                         st.rerun()
@@ -385,16 +427,37 @@ with tab_historial:
             st.metric("💵 Total Dinero Recibido (Ventas + Abonos)", f"${total_caja:,.2f}")
             st.dataframe(df_h, use_container_width=True)
             
+            # Visor rápido de foto en historial seleccionando la fila
+            st.markdown("---")
+            st.markdown("#### 🔍 Ver Foto de un Registro del Historial")
+            lista_hist = [f"Fila {i} | Fecha: {r['FECHA']} | Cliente: {r['CLIENTE']} | Prod: {r['CATEGORIA']}" for i, r in df_h.iterrows()]
+            reg_foto_sel = st.selectbox("Selecciona un registro para ver su foto guardada", lista_hist)
+            if reg_foto_sel:
+                idx_h = int(reg_foto_sel.split(" | ")[0].replace("Fila ", ""))
+                path_f = str(df_h.loc[idx_h].get("FOTO", "Sin foto"))
+                if path_f != "Sin foto" and os.path.exists(path_f):
+                    st.image(path_f, width=300, caption=f"Foto de {df_h.loc[idx_h]['CATEGORIA']}")
+                else:
+                    st.info("Este registro no tiene foto guardada.")
+
             st.markdown("---")
             st.markdown("#### 🗑️ Eliminar Registro Erróneo (Protegido)")
             pass_del = st.text_input("Contraseña de Administrador para borrar", type="password", key="pass_del_reg")
             
             if pass_del == CLAVE_ADMIN:
                 lista_borrar = [f"Fila {i} | Fecha: {r['FECHA']} | Cliente: {r['CLIENTE']} | Total: ${r['TOTAL']}" for i, r in df_h.iterrows()]
-                reg_a_borrar = st.selectbox("Selecciona el registro que deseas eliminar", lista_borrar)
+                reg_a_borrar = st.selectbox("Selecciona el registro que deseas eliminar", lista_borrar, key="sel_borrar")
                 
                 if st.button("❌ BORRAR REGISTRO SELECCIONADO PERMANENTEMENTE"):
                     idx_del = int(reg_a_borrar.split(" | ")[0].replace("Fila ", ""))
+                    # Borrar archivo de foto asociado si existe
+                    foto_a_borrar = str(df_h.loc[idx_del].get("FOTO", "Sin foto"))
+                    if foto_a_borrar != "Sin foto" and os.path.exists(foto_a_borrar):
+                        try:
+                            os.remove(foto_a_borrar)
+                        except:
+                            pass
+                            
                     df_h = df_h.drop(idx_del).reset_index(drop=True)
                     df_h.to_csv(FILE_VENTAS, index=False)
                     st.success("¡Registro eliminado correctamente!")
