@@ -51,20 +51,34 @@ def html(contenido):
 def guardar_csv(df, ruta):
     df.to_csv(ruta, index=False, encoding="utf-8-sig")
 
-def normalizar_inventario(df):
-    for col in ["CATEGORIA", "STOCK", "PRECIO", "STOCK_MINIMO"]:
-        if col not in df.columns:
-            if col == "STOCK_MINIMO":
-                df[col] = 1
-            else:
-                df[col] = "" if col == "CATEGORIA" else 0
+def normalizar_inventario(df_input):
+    if df_input is None or df_input.empty:
+        return pd.DataFrame(columns=["CATEGORIA", "STOCK", "PRECIO", "STOCK_MINIMO"])
+    
+    df = df_input.copy()
+    
+    # Inyección garantizada de columnas faltantes
+    if "CATEGORIA" not in df.columns:
+        df["CATEGORIA"] = ""
+    if "STOCK" not in df.columns:
+        df["STOCK"] = 0
+    if "PRECIO" not in df.columns:
+        df["PRECIO"] = 0.0
+    if "STOCK_MINIMO" not in df.columns:
+        df["STOCK_MINIMO"] = 1
+
     df["CATEGORIA"] = df["CATEGORIA"].fillna("").astype(str).str.strip()
     df["STOCK"] = pd.to_numeric(df["STOCK"], errors="coerce").fillna(0).astype(int).clip(lower=0)
     df["STOCK_MINIMO"] = pd.to_numeric(df["STOCK_MINIMO"], errors="coerce").fillna(1).astype(int).clip(lower=0)
     df["PRECIO"] = pd.to_numeric(df["PRECIO"], errors="coerce").fillna(0.0).clip(lower=0)
+    
     return df[df["CATEGORIA"] != ""].reset_index(drop=True)[["CATEGORIA", "STOCK", "PRECIO", "STOCK_MINIMO"]]
 
-def normalizar_ventas(df):
+def normalizar_ventas(df_input):
+    if df_input is None or df_input.empty:
+        return pd.DataFrame(columns=COLUMNAS_VENTAS)
+    
+    df = df_input.copy()
     for columna in COLUMNAS_VENTAS:
         if columna not in df.columns:
             if columna == "ABONADO":
@@ -175,23 +189,25 @@ def producto_es_vendible(df, nombre):
     return not es_categoria_principal(df, nombre)
 
 def obtener_productos_vendibles(df):
+    if df.empty or "CATEGORIA" not in df.columns:
+        return []
     return [nombre for nombre in df["CATEGORIA"].tolist() if producto_es_vendible(df, nombre)]
 
 def existe_producto(df, nombre):
+    if df.empty or "CATEGORIA" not in df.columns:
+        return False
     return nombre.strip().lower() in df["CATEGORIA"].astype(str).str.strip().str.lower().values
 
 # ============================================================
-#                 INICIALIZACIÓN DE SESIÓN
+#                 INICIALIZACIÓN Y NORMALIZACIÓN DE SESIÓN
 # ============================================================
 
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
-if "df_inv" not in st.session_state:
-    st.session_state["df_inv"] = cargar_inventario()
-
-if "df_ventas" not in st.session_state:
-    st.session_state["df_ventas"] = cargar_ventas()
+# Forzar recarga completa y sobreescritura de datos corregidos
+st.session_state["df_inv"] = cargar_inventario()
+st.session_state["df_ventas"] = cargar_ventas()
 
 # ============================================================
 #                 LOGIN DE ACCESO
@@ -452,14 +468,16 @@ with tab_apartado:
 # ------------------------------------------------------------
 with tab_inventario:
     st.markdown("### 🛠️ Gestión y Reabastecimiento de Inventario")
-    if st.text_input("🔐 Clave Administrador", type="password", key="pwd_inv") == CLAVE_ADMIN:
-        
-        # Alerta de Stock Mínimo
+    
+    # 1. Alertas protegidas
+    if not df_inv.empty and "STOCK_MINIMO" in df_inv.columns and "STOCK" in df_inv.columns:
         agotados = df_inv[df_inv["STOCK"] <= df_inv["STOCK_MINIMO"]]
         if not agotados.empty:
             st.warning("⚠️ **Atención: Productos bajo el Stock Mínimo Recomendado**")
             st.dataframe(agotados[["CATEGORIA", "STOCK", "STOCK_MINIMO"]], hide_index=True, use_container_width=True)
 
+    # 2. Formulario con clave admin
+    if st.text_input("🔐 Clave Administrador", type="password", key="pwd_inv") == CLAVE_ADMIN:
         principales = [n for n in df_inv["CATEGORIA"].tolist() if " - " not in str(n)]
         opciones = ["✨ Crear Repositorio Principal", "📦 Crear Producto Simple"] + principales
         opc = st.selectbox("Acción / Categoría Padre", opciones)
@@ -468,7 +486,8 @@ with tab_inventario:
             nom = st.text_input("Nombre de la Categoría Principal (Ej: Camas)")
             if st.button("➕ CREAR REPOSITORIO"):
                 if nom.strip() and not existe_producto(df_inv, nom.strip()):
-                    df_inv = pd.concat([df_inv, pd.DataFrame([{"CATEGORIA": nom.strip(), "STOCK": 0, "PRECIO": 0.0, "STOCK_MINIMO": 1}])], ignore_index=True)
+                    nuevo_df = pd.DataFrame([{"CATEGORIA": nom.strip(), "STOCK": 0, "PRECIO": 0.0, "STOCK_MINIMO": 1}])
+                    df_inv = pd.concat([df_inv, nuevo_df], ignore_index=True)
                     guardar_csv(df_inv, FILE_INV)
                     st.session_state["df_inv"] = df_inv
                     st.success("Creado correctamente.")
@@ -481,7 +500,8 @@ with tab_inventario:
             prc = c3.number_input("Precio ($)", min_value=0.0, value=10.0)
             if st.button("➕ CREAR PRODUCTO"):
                 if nom.strip() and not existe_producto(df_inv, nom.strip()):
-                    df_inv = pd.concat([df_inv, pd.DataFrame([{"CATEGORIA": nom.strip(), "STOCK": stk, "PRECIO": prc, "STOCK_MINIMO": 1}])], ignore_index=True)
+                    nuevo_df = pd.DataFrame([{"CATEGORIA": nom.strip(), "STOCK": stk, "PRECIO": prc, "STOCK_MINIMO": 1}])
+                    df_inv = pd.concat([df_inv, nuevo_df], ignore_index=True)
                     guardar_csv(df_inv, FILE_INV)
                     st.session_state["df_inv"] = df_inv
                     st.success("Creado correctamente.")
@@ -493,7 +513,8 @@ with tab_inventario:
             if st.button("➕ CREAR SUBPRODUCTO"):
                 full_nom = f"{opc} - {sub_nom.strip()}"
                 if sub_nom.strip() and not existe_producto(df_inv, full_nom):
-                    df_inv = pd.concat([df_inv, pd.DataFrame([{"CATEGORIA": full_nom, "STOCK": stk, "PRECIO": prc, "STOCK_MINIMO": 1}])], ignore_index=True)
+                    nuevo_df = pd.DataFrame([{"CATEGORIA": full_nom, "STOCK": stk, "PRECIO": prc, "STOCK_MINIMO": 1}])
+                    df_inv = pd.concat([df_inv, nuevo_df], ignore_index=True)
                     guardar_csv(df_inv, FILE_INV)
                     st.session_state["df_inv"] = df_inv
                     st.success("Subproducto creado.")
@@ -509,7 +530,6 @@ with tab_inventario:
 with tab_historial:
     st.markdown("### 📜 Historial de Ventas y Filtros")
     if not df_ventas.empty:
-        # Exportación
         buffer_excel = io.BytesIO()
         with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
             df_ventas.to_excel(writer, index=False, sheet_name='Ventas')
