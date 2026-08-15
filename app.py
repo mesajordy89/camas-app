@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 import urllib.parse
 
-# Configuración de la aplicación
+# Configuración de página
 st.set_page_config(page_title="Local Mesitas - POS", layout="wide", initial_sidebar_state="collapsed")
 
 ADMIN_PASSWORD = "admin"
@@ -92,6 +92,8 @@ if "df_apartados" not in st.session_state: st.session_state["df_apartados"] = ca
 if "carrito" not in st.session_state: st.session_state["carrito"] = []
 if "recibos_duenos" not in st.session_state: st.session_state["recibos_duenos"] = None
 if "abrir_dialogo" not in st.session_state: st.session_state["abrir_dialogo"] = False
+if "filtro_categoria" not in st.session_state: st.session_state["filtro_categoria"] = "TODOS"
+if "admin_autenticado" not in st.session_state: st.session_state["admin_autenticado"] = False
 
 df_inv = st.session_state["df_inv"]
 
@@ -205,7 +207,7 @@ if st.session_state.get("recibos_duenos"):
     st.divider()
 
 
-# --- NAVEGACIÓN Y PESTAÑAS ---
+# --- NAVEGACIÓN PRINCIPAL ---
 tab_venta, tab_apartados, tab_inv, tab_historial = st.tabs([
     "🛒 CATÁLOGO Y VENTA", "📑 APARTADOS", "📦 INVENTARIO", "📊 HISTORIAL"
 ])
@@ -226,10 +228,16 @@ with tab_venta:
         st.session_state["abrir_dialogo"] = False
         st.rerun()
 
+    # Filtros de categorías
+    cats_padre = ["TODOS"] + sorted(list(df_inv[df_inv["ES_TITULO"].astype(str).str.upper().isin(["SI", "SÍ", "TRUE", "1"])]["CATEGORIA"].unique()))
+    filtro_sel = st.selectbox("🔍 Filtrar por categoría:", cats_padre)
+
     subproductos = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]
+    if filtro_sel != "TODOS":
+        subproductos = subproductos[subproductos["CATEGORIA"].str.startswith(filtro_sel)]
 
     if subproductos.empty:
-        st.info("No hay productos cargados en el inventario.")
+        st.info("No hay productos disponibles en esta categoría.")
     else:
         cols_per_row = 3
         cols = st.columns(cols_per_row)
@@ -259,15 +267,67 @@ with tab_venta:
 
 # --- 2. APARTADOS ---
 with tab_apartados:
-    st.title("📑 Gestión de Apartados")
+    st.title("📑 Gestión de Apartados / Reservas")
+    
+    with st.expander("➕ Registrar Nuevo Apartado", expanded=False):
+        with st.form("form_nuevo_apartado"):
+            prods_vend = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]["CATEGORIA"].tolist()
+            p_ap = st.selectbox("Producto", prods_vend) if prods_vend else st.text_input("Producto")
+            c_nom_ap = st.text_input("Nombre Cliente")
+            c_tel_ap = st.text_input("Teléfono Cliente")
+            tot_ap = st.number_input("Monto Total ($)", min_value=0.0, value=100.0)
+            abo_ap = st.number_input("Abono Inicial ($)", min_value=0.0, value=20.0)
+            f_ent = st.date_input("Fecha Estimada Entrega")
+            
+            if st.form_submit_button("Guardar Apartado"):
+                nuevo_ap = {
+                    "ID": f"AP-{len(st.session_state['df_apartados'])+1:03d}",
+                    "FECHA": datetime.now().strftime("%Y-%m-%d"),
+                    "CLIENTE": c_nom_ap,
+                    "TELEFONO": c_tel_ap,
+                    "CATEGORIA": p_ap,
+                    "TOTAL": tot_ap,
+                    "ABONADO": abo_ap,
+                    "SALDO": max(0.0, tot_ap - abo_ap),
+                    "ESTADO": "Pendiente",
+                    "FECHA_ENTREGA": str(f_ent)
+                }
+                st.session_state["df_apartados"] = pd.concat([st.session_state["df_apartados"], pd.DataFrame([nuevo_ap])], ignore_index=True)
+                guardar_csv(st.session_state["df_apartados"], FILE_APARTADOS)
+                st.success("Apartado registrado con éxito.")
+                st.rerun()
+
     st.dataframe(st.session_state["df_apartados"], use_container_width=True)
 
-# --- 3. INVENTARIO ---
+# --- 3. INVENTARIO & ADMINISTRACIÓN ---
 with tab_inv:
-    st.title("📦 Control de Inventario")
-    st.dataframe(st.session_state["df_inv"], use_container_width=True)
+    st.title("📦 Control de Inventario y Edición")
+    
+    pwd = st.text_input("🔒 Contraseña Admin para editar:", type="password")
+    if pwd == ADMIN_PASSWORD:
+        st.success("Modo Edición Activado")
+        
+        # Editor interactivo
+        edited_df = st.data_editor(st.session_state["df_inv"], num_rows="dynamic", use_container_width=True)
+        if st.button("💾 Guardar Cambios en Inventario"):
+            st.session_state["df_inv"] = edited_df
+            guardar_csv(edited_df, FILE_INV)
+            st.success("¡Inventario actualizado correctamente!")
+            st.rerun()
+    else:
+        if pwd != "":
+            st.error("Contraseña incorrecta")
+        st.dataframe(st.session_state["df_inv"], use_container_width=True)
 
-# --- 4. HISTORIAL ---
+# --- 4. HISTORIAL DE VENTAS ---
 with tab_historial:
-    st.title("📊 Historial de Ventas")
-    st.dataframe(st.session_state["df_ventas"], use_container_width=True)
+    st.title("📊 Historial de Ventas y Reportes")
+    
+    df_v = st.session_state["df_ventas"]
+    if not df_v.empty:
+        c1, c2 = st.columns(2)
+        tot_ventas = pd.to_numeric(df_v["TOTAL"], errors="coerce").sum()
+        c1.metric("💰 Ventas Totales", f"${tot_ventas:,.2f}")
+        c2.metric("📦 Cantidad de Transacciones", len(df_v))
+        
+    st.dataframe(df_v, use_container_width=True)
