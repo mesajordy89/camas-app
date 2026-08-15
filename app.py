@@ -78,7 +78,7 @@ def guardar_csv(df, ruta):
     df.to_csv(
         ruta,
         index=False,
-        encoding="utf-utf-8-sig" if "utf-utf" in "" else "utf-8-sig",
+        encoding="utf-8-sig",
     )
 
 
@@ -163,6 +163,11 @@ def cargar_ventas():
     return df
 
 
+def guardar_inventario_estado(df):
+    st.session_state["df_inv"] = df
+    guardar_csv(df, FILE_INV)
+
+
 # ============================================================
 #                 FOTOS Y COMUNICACIONES
 # ============================================================
@@ -185,40 +190,8 @@ def generar_link_whatsapp(numero, mensaje):
     return f"https://wa.me/{numero}?text={texto}"
 
 
-def enviar_correo_venta(destinatario, asunto, cuerpo, ruta_foto=None):
-    if not destinatario or "@" not in str(destinatario):
-        return
-    try:
-        remitente = st.secrets["EMAIL_USER"]
-        password = st.secrets["EMAIL_PASS"]
-    except Exception:
-        return
-
-    try:
-        mensaje = EmailMessage()
-        mensaje["Subject"] = asunto
-        mensaje["From"] = remitente
-        mensaje["To"] = destinatario
-        mensaje.set_content(cuerpo)
-
-        if ruta_foto and ruta_foto != "Sin foto" and os.path.exists(ruta_foto):
-            with open(ruta_foto, "rb") as f:
-                datos = f.read()
-            tipo_mime, _ = mimetypes.guess_type(ruta_foto)
-            if not tipo_mime:
-                tipo_mime = "image/jpeg"
-            maintype, subtype = tipo_mime.split("/", 1)
-            mensaje.add_attachment(datos, maintype=maintype, subtype=subtype, filename=os.path.basename(ruta_foto))
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(remitente, password)
-            smtp.send_message(mensaje)
-    except Exception as error:
-        print(f"Error al enviar correo: {error}")
-
-
 # ============================================================
-#                 FUNCIONES VISUALES
+#                 FUNCIONES VISUALES Y LÓGICA
 # ============================================================
 
 def obtener_icono(categoria):
@@ -250,10 +223,6 @@ def contar_apartados(df):
         return 0
     return int(df["ESTADO"].astype(str).str.contains("Apartado", case=False, na=False).sum())
 
-
-# ============================================================
-#                 PRODUCTOS / SUBPRODUCTOS LÓGICA
-# ============================================================
 
 def es_subproducto(nombre):
     return " - " in str(nombre)
@@ -289,11 +258,17 @@ def existe_producto(df, nombre):
 
 
 # ============================================================
-#                 LOGIN
+#                 INICIALIZACIÓN DE SESIÓN Y LOGIN
 # ============================================================
 
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
+
+if "df_inv" not in st.session_state:
+    st.session_state["df_inv"] = cargar_inventario()
+
+df_inv = st.session_state["df_inv"]
+df_ventas = cargar_ventas()
 
 if not st.session_state["autenticado"]:
     html(
@@ -326,11 +301,8 @@ if not st.session_state["autenticado"]:
 
 
 # ============================================================
-#                 CARGAR INFORMACIÓN Y ESTILOS
+#                 ESTILOS VISUALES
 # ============================================================
-
-df_inv = cargar_inventario()
-df_ventas = cargar_ventas()
 
 html(
     """
@@ -340,7 +312,6 @@ html(
     .info-card { background:white; padding:20px; border-radius:20px; text-align:center; border:1px solid #e2e8f0; box-shadow:0 6px 18px rgba(15,23,42,0.07); }
     .product-card { background:white; border:1px solid #e2e8f0; border-radius:22px; padding:20px 12px; text-align:center; min-height:220px; box-shadow:0 8px 25px rgba(15,23,42,0.08); margin-bottom:15px; }
     .total-card { background: linear-gradient(135deg, #eff6ff, #dbeafe); border:2px solid #3b82f6; border-radius:22px; padding:24px; text-align:center; }
-    .receipt-card { background:white; padding:26px; border-radius:22px; border-left:7px solid #2563eb; box-shadow:0 8px 25px rgba(15,23,42,0.08); }
     .stButton > button { border-radius:14px; min-height:54px; font-weight:800; font-size:17px !important; }
     input, textarea, select { border-radius:12px !important; }
     </style>
@@ -527,7 +498,7 @@ with tab_venta:
                         df_inv.loc[idx_p, "STOCK"] = max(0, int(df_inv.loc[idx_p, "STOCK"]) - cantidad)
                         cat_guardar = producto_elegido
 
-                    guardar_csv(df_inv, FILE_INV)
+                    guardar_inventario_estado(df_inv)
 
                     fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
                     nueva_venta = pd.DataFrame([{
@@ -593,7 +564,7 @@ with tab_apartado:
                     if saldo_ap <= 0:
                         idx_ap = df_inv[df_inv["CATEGORIA"] == producto_apartado].index[0]
                         df_inv.loc[idx_ap, "STOCK"] = max(0, int(df_inv.loc[idx_ap, "STOCK"]) - cant_ap)
-                        guardar_csv(df_inv, FILE_INV)
+                        guardar_inventario_estado(df_inv)
 
                     df_ventas = pd.concat([df_ventas, nuevo_ap], ignore_index=True)
                     guardar_csv(df_ventas, FILE_VENTAS)
@@ -615,15 +586,15 @@ with tab_inventario:
 
         opciones_creacion = [
             "✨ CREAR NUEVO REPOSITORIO / CATEGORÍA (Sin precio)",
-            "📦 CREAR PRODUCTO SIMPLE (Con precio y stock)",
+            "📦 CREAR PRODUCTO SIMPLE (Con precio y stock)"
         ] + principales
 
-        opcion_padre = st.selectbox("📂 Seleccione Acción o Categoría Padre", opciones_creacion)
+        opcion_padre = st.selectbox("📂 Seleccione Acción o Categoría Padre", opciones_creacion, key="sel_opcion_padre")
 
         # OPCIÓN 1: Crear Categoría Principal / Repositorio
         if opcion_padre == "✨ CREAR NUEVO REPOSITORIO / CATEGORÍA (Sin precio)":
-            nuevo_nombre_cat = st.text_input("📦 Nombre de la nueva Categoría Principal (Ej. Camas)")
-            if st.button("➕ CREAR REPOSITORIO PRINCIPAL", use_container_width=True):
+            nuevo_nombre_cat = st.text_input("📦 Nombre de la nueva Categoría Principal (Ej. Camas)", key="input_cat_princ")
+            if st.button("➕ CREAR REPOSITORIO PRINCIPAL", use_container_width=True, key="btn_cat_princ"):
                 nombre_limpio = nuevo_nombre_cat.strip()
                 if not nombre_limpio:
                     st.warning("⚠️ Escriba el nombre de la categoría.")
@@ -631,18 +602,18 @@ with tab_inventario:
                     st.error("❌ La categoría ya existe.")
                 else:
                     nuevo_reg = pd.DataFrame([{"CATEGORIA": nombre_limpio, "STOCK": 0, "PRECIO": 0.0}])
-                    df_inv = pd.concat([df_inv, nuevo_reg], ignore_index=True)
-                    guardar_csv(df_inv, FILE_INV)
+                    df_actualizado = pd.concat([df_inv, nuevo_reg], ignore_index=True)
+                    guardar_inventario_estado(df_actualizado)
                     st.success(f"📂 Repositorio '{nombre_limpio}' creado con éxito.")
                     st.rerun()
 
         # OPCIÓN 2: Crear Producto Simple (Sin subproductos)
         elif opcion_padre == "📦 CREAR PRODUCTO SIMPLE (Con precio y stock)":
-            nom_simple = st.text_input("📦 Nombre del Producto (Ej. Velador)")
+            nom_simple = st.text_input("📦 Nombre del Producto (Ej. Velador)", key="input_prod_simp")
             st_simple = st.number_input("📦 Stock Inicial", min_value=0, value=1, key="st_sim")
             pr_simple = st.number_input("💰 Precio ($)", min_value=0.0, value=25.0, step=5.0, key="pr_sim")
 
-            if st.button("➕ CREAR PRODUCTO SIMPLE", use_container_width=True):
+            if st.button("➕ CREAR PRODUCTO SIMPLE", use_container_width=True, key="btn_prod_simp"):
                 nombre_limpio = nom_simple.strip()
                 if not nombre_limpio:
                     st.warning("⚠️ Escriba el nombre del producto.")
@@ -652,18 +623,18 @@ with tab_inventario:
                     st.error("❌ El producto ya existe.")
                 else:
                     nuevo_reg = pd.DataFrame([{"CATEGORIA": nombre_limpio, "STOCK": st_simple, "PRECIO": pr_simple}])
-                    df_inv = pd.concat([df_inv, nuevo_reg], ignore_index=True)
-                    guardar_csv(df_inv, FILE_INV)
+                    df_actualizado = pd.concat([df_inv, nuevo_reg], ignore_index=True)
+                    guardar_inventario_estado(df_actualizado)
                     st.success(f"🎉 Producto '{nombre_limpio}' creado con éxito.")
                     st.rerun()
 
         # OPCIÓN 3: Crear Subproducto dentro de un Repositorio Existente
         else:
-            sub_nombre = st.text_input(f"🛏️ Subproducto para '{opcion_padre}' (Ej. Cama 3 Plazas)")
+            sub_nombre = st.text_input(f"🛏️ Subproducto para '{opcion_padre}' (Ej. Cama 3 Plazas)", key="input_subprod")
             st_sub = st.number_input("📦 Stock Inicial", min_value=0, value=1, key="st_sub")
             pr_sub = st.number_input("💰 Precio ($)", min_value=0.0, value=50.0, step=5.0, key="pr_sub")
 
-            if st.button("➕ CREAR SUBPRODUCTO", use_container_width=True):
+            if st.button("➕ CREAR SUBPRODUCTO", use_container_width=True, key="btn_subprod"):
                 nombre_limpio = sub_nombre.strip()
                 nombre_final = f"{opcion_padre} - {nombre_limpio}"
 
@@ -675,8 +646,8 @@ with tab_inventario:
                     st.error("❌ El subproducto ya existe.")
                 else:
                     nuevo_reg = pd.DataFrame([{"CATEGORIA": nombre_final, "STOCK": st_sub, "PRECIO": pr_sub}])
-                    df_inv = pd.concat([df_inv, nuevo_reg], ignore_index=True)
-                    guardar_csv(df_inv, FILE_INV)
+                    df_actualizado = pd.concat([df_inv, nuevo_reg], ignore_index=True)
+                    guardar_inventario_estado(df_actualizado)
                     st.success(f"🎉 Subproducto '{nombre_final}' guardado exitosamente.")
                     st.rerun()
 
