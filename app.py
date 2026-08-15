@@ -18,84 +18,116 @@ NUMEROS_WHATSAPP = {
     "Vendedor 2 (0983576800)": "593983576800"
 }
 
-# --- ESTILOS CSS ---
+# --- ESTILOS CSS AVANZADOS (CATÁLOGO PRO) ---
 st.markdown("""
 <style>
-    .stApp { background-color: #f1f5f9; }
+    /* Fondo general estilo Dashboard moderno */
+    .stApp { 
+        background-color: #f8fafc; 
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
 
+    /* Rediseño de la Card del Catálogo */
     .catalog-card {
         background: #ffffff;
-        border-radius: 16px;
+        border-radius: 20px;
         overflow: hidden;
         border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        margin-bottom: 20px;
+        box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        margin-bottom: 24px;
+        position: relative;
         display: flex;
         flex-direction: column;
     }
+    
     .catalog-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 24px rgba(37, 99, 235, 0.12);
-        border-color: #3b82f6;
+        transform: translateY(-6px);
+        box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
+        border-color: #cbd5e1;
     }
-    .card-img-placeholder {
-        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-        height: 110px;
+
+    /* Encabezado visual de la Card (Contenedor de Imagen/Icono) */
+    .card-img-container {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        height: 140px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 3rem;
-        color: #ffffff;
+        font-size: 3.5rem;
+        position: relative;
     }
+
+    /* Badges Flotantes sobre la Imagen */
+    .badge-float {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    }
+    .badge-ok { background: rgba(220, 252, 231, 0.95); color: #15803d; border: 1px solid #bbf7d0; }
+    .badge-low { background: rgba(254, 243, 199, 0.95); color: #b45309; border: 1px solid #fde68a; }
+    .badge-out { background: rgba(254, 226, 226, 0.95); color: #b91c1c; border: 1px solid #fecaca; }
+
+    /* Cuerpo de la Card */
     .card-body {
-        padding: 16px;
+        padding: 18px;
         flex-grow: 1;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
     }
+
     .card-title {
         font-size: 1.05rem;
         font-weight: 700;
         color: #0f172a;
-        margin-bottom: 8px;
-        min-height: 48px;
+        line-height: 1.35;
+        margin-bottom: 12px;
+        min-height: 44px;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
+
     .card-footer-info {
         display: flex;
+        align-items: baseline;
         justify-content: space-between;
-        align-items: center;
-        margin-top: 10px;
-    }
-    .card-price {
-        font-size: 1.35rem;
-        font-weight: 800;
-        color: #2563eb;
+        padding-top: 10px;
+        border-top: 1px dashed #f1f5f9;
     }
 
-    .badge {
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 0.72rem;
-        font-weight: 700;
+    .card-price-label {
+        font-size: 0.75rem;
+        color: #64748b;
+        font-weight: 600;
         text-transform: uppercase;
     }
-    .badge-ok { background: #dcfce7; color: #15803d; }
-    .badge-low { background: #fef3c7; color: #b45309; }
-    .badge-out { background: #fee2e2; color: #b91c1c; }
 
+    .card-price {
+        font-size: 1.45rem;
+        font-weight: 800;
+        color: #2563eb;
+        letter-spacing: -0.5px;
+    }
+
+    /* Banner Promocional */
     .promo-banner {
-        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%);
         color: #ffffff;
-        border-radius: 16px;
-        padding: 20px 24px;
-        margin-bottom: 25px;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        border-radius: 20px;
+        padding: 22px 28px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -227,7 +259,6 @@ def abrir_modal_carrito():
 
     st.divider()
 
-    # BOTÓN PARA CERRAR EL MODAL Y SELECCIONAR MÁS PRODUCTOS
     if st.button("➕ Agregar más productos del catálogo", use_container_width=True):
         st.session_state["abrir_dialogo"] = False
         st.rerun()
@@ -299,11 +330,11 @@ tab_venta, tab_apartados, tab_inv, tab_historial = st.tabs([
 
 
 # ============================================================
-#            TAB 1: CATÁLOGO Y VENTA
+#            TAB 1: CATÁLOGO Y VENTA (REDISAEÑADO)
 # ============================================================
 with tab_venta:
     col_hdr1, col_hdr2, col_hdr3 = st.columns([2, 1, 1])
-    col_hdr1.title("🛋️ Catálogo de Productos")
+    col_hdr1.title("✨ Catálogo de Productos")
     
     cant_items = sum([it['cantidad'] for it in st.session_state["carrito"]])
     
@@ -311,7 +342,6 @@ with tab_venta:
         st.session_state["abrir_dialogo"] = True
         st.rerun()
 
-    # BOTÓN PARA VACIAR EL CARRITO DIRECTAMENTE
     if col_hdr3.button("🗑️ Vaciar Carrito", use_container_width=True, disabled=(cant_items == 0)):
         st.session_state["carrito"] = []
         st.session_state["abrir_dialogo"] = False
@@ -322,13 +352,13 @@ with tab_venta:
     else:
         subproductos = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]
 
-        # 1. COMBO PROMOCIONAL
+        # 1. COMBO PROMOCIONAL REDISEÑADO
         camas_disponibles = subproductos[subproductos["CATEGORIA"].str.contains("CAMA", case=False, na=False) & (subproductos["STOCK"] > 0)]["CATEGORIA"].tolist()
         colchones_disponibles = subproductos[subproductos["CATEGORIA"].str.contains("COLCHON|COLCHÓN", case=False, na=False) & (subproductos["STOCK"] > 0)]["CATEGORIA"].tolist()
 
         if camas_disponibles and colchones_disponibles:
             with st.container():
-                st.markdown('<div class="promo-banner">✨ <b>Armar Combo Promocional Especial</b></div>', unsafe_allow_html=True)
+                st.markdown('<div class="promo-banner"><h3 style="margin:0; font-weight:800;">⚡ Armar Combo Promocional Especial</h3><p style="margin:4px 0 0 0; opacity:0.9; font-size:0.9rem;">Combina cama + colchón a un precio preferencial</p></div>', unsafe_allow_html=True)
                 cb1, cb2, cb3, cb4 = st.columns([3, 3, 2, 2])
                 sel_c = cb1.selectbox("🛏️ Cama", camas_disponibles, key="cb_cama")
                 sel_m = cb2.selectbox("💤 Colchón", colchones_disponibles, key="cb_colchon")
@@ -346,13 +376,15 @@ with tab_venta:
 
         st.divider()
 
-        # 2. BÚSQUEDA
-        search_query = st.text_input("🔍 Buscar por nombre o tipo...", placeholder="Ej: Cama tapizada, Colchón...")
+        # 2. BÚSQUEDA Y FILTRADO
+        search_query = st.text_input("🔍 Buscar productos por nombre...", placeholder="Ej: Cama tapizada, Colchón...")
         if search_query:
             subproductos = subproductos[subproductos["CATEGORIA"].str.contains(search_query, case=False, na=False)]
 
-        # 3. GRILLA DE CATÁLOGO
-        cols_per_row = 4
+        st.write("")
+
+        # 3. GRILLA DE CATÁLOGO MEJORADA (3 Columnas para mayor presencia visual)
+        cols_per_row = 3
         cols = st.columns(cols_per_row)
 
         for idx, (_, row) in enumerate(subproductos.iterrows()):
@@ -360,32 +392,35 @@ with tab_venta:
             stk_min = int(row['STOCK_MINIMO'])
             
             if stk <= 0:
-                badge = '<span class="badge badge-out">Agotado</span>'
+                badge = '<span class="badge-float badge-out">Agotado</span>'
             elif stk <= stk_min:
-                badge = f'<span class="badge badge-low">Quedan {stk}</span>'
+                badge = f'<span class="badge-float badge-low">Quedan {stk}</span>'
             else:
-                badge = f'<span class="badge badge-ok">Stock: {stk}</span>'
+                badge = f'<span class="badge-float badge-ok">Stock: {stk}</span>'
 
             icono = "🛏️" if "CAMA" in row['CATEGORIA'].upper() else "💤" if "COLCHON" in row['CATEGORIA'].upper() else "📦"
 
             with cols[idx % cols_per_row]:
                 st.markdown(f"""
                 <div class="catalog-card">
-                    <div class="card-img-placeholder">{icono}</div>
+                    <div class="card-img-container">
+                        {badge}
+                        <span>{icono}</span>
+                    </div>
                     <div class="card-body">
-                        <div>
-                            {badge}
-                            <div class="card-title">{row['CATEGORIA']}</div>
-                        </div>
+                        <div class="card-title">{row['CATEGORIA']}</div>
                         <div class="card-footer-info">
-                            <div class="card-price">${row['PRECIO']:,.2f}</div>
+                            <div>
+                                <div class="card-price-label">Precio</div>
+                                <div class="card-price">${row['PRECIO']:,.2f}</div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
                 if stk > 0:
-                    if st.button("🛒 Agregar", key=f"add_{idx}", use_container_width=True):
+                    if st.button("🛒 Agregar al Carrito", key=f"add_{idx}", use_container_width=True, type="secondary"):
                         encontrado = False
                         for item in st.session_state["carrito"]:
                             if item["producto"] == row['CATEGORIA']:
@@ -402,7 +437,7 @@ with tab_venta:
                         st.session_state["abrir_dialogo"] = True
                         st.rerun()
                 else:
-                    st.button("Agotado", key=f"dis_{idx}", disabled=True, use_container_width=True)
+                    st.button("🚫 Sin Stock", key=f"dis_{idx}", disabled=True, use_container_width=True)
 
 
 # ============================================================
