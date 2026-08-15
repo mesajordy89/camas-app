@@ -1,5 +1,11 @@
 from datetime import datetime
+from email.message import EmailMessage
+import mimetypes
 import os
+import smtplib
+import textwrap
+import urllib.parse
+
 import pandas as pd
 import streamlit as st
 
@@ -15,14 +21,17 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------------------------
-# ESTILOS CSS PERSONALIZADOS
+# ESTILOS CSS PERSONALIZADOS PARA CELULAR Y BOTONES LLAMATIVOS
 # ------------------------------------------------------------------------------
 st.markdown(
     """
     <style>
+    /* Estilos generales */
     .stApp {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
+    
+    /* Botones principales para pantallas táctiles */
     div.stButton > button {
         width: 100% !important;
         height: 3.2rem !important;
@@ -36,20 +45,35 @@ st.markdown(
         transition: all 0.2s ease-in-out !important;
         margin-bottom: 8px !important;
     }
+
     div.stButton > button:hover, div.stButton > button:active {
         transform: scale(0.98);
         background: linear-gradient(135deg, #1d4ed8, #1e40af) !important;
         box-shadow: 0px 2px 5px rgba(0,0,0,0.2) !important;
     }
+
+    /* Campos de entrada optimizados para táctil */
     .stTextInput input, .stNumberInput input, .stSelectbox select {
         font-size: 1rem !important;
         padding: 10px !important;
         border-radius: 10px !important;
     }
+
+    /* Pestañas más grandes para celular */
     button[data-baseweb="tab"] {
         font-size: 1.1rem !important;
         font-weight: bold !important;
         padding: 12px 16px !important;
+    }
+
+    /* Tarjetas de productos/resumen */
+    .product-card {
+        background-color: #f8fafc;
+        border-left: 5px solid #2563eb;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     </style>
     """,
@@ -59,23 +83,20 @@ st.markdown(
 # ------------------------------------------------------------------------------
 # CONFIGURACIÓN Y CONSTANTES
 # ------------------------------------------------------------------------------
-CLAVE_ADMIN = "1998"
+CLAVE_ADMIN = "1998"  # Clave de administrador actualizada
 FILE_INV = "inventario.csv"
 FILE_VENTAS = "ventas.csv"
 
-COLUMNAS_INV = ["id", "nombre", "categoria", "precio", "stock"]
-COLUMNAS_VENTAS = ["fecha", "producto", "cantidad", "total", "metodo_pago"]
-
-# Funciones de carga y guardado
+# Funciones de carga y guardado de datos
 def cargar_inventario():
     if os.path.exists(FILE_INV):
         try:
-            df = pd.read_csv(FILE_INV)
-            if not df.empty and all(col in df.columns for col in COLUMNAS_INV):
-                return df
+            return pd.read_csv(FILE_INV)
         except Exception:
             pass
-    return pd.DataFrame(columns=COLUMNAS_INV)
+    return pd.DataFrame(
+        columns=["id", "nombre", "categoria", "precio", "stock"]
+    )
 
 def guardar_inventario(df):
     df.to_csv(FILE_INV, index=False)
@@ -83,22 +104,22 @@ def guardar_inventario(df):
 def cargar_ventas():
     if os.path.exists(FILE_VENTAS):
         try:
-            df = pd.read_csv(FILE_VENTAS)
-            if not df.empty and all(col in df.columns for col in COLUMNAS_VENTAS):
-                return df
+            return pd.read_csv(FILE_VENTAS)
         except Exception:
             pass
-    return pd.DataFrame(columns=COLUMNAS_VENTAS)
+    return pd.DataFrame(
+        columns=["fecha", "producto", "cantidad", "total", "metodo_pago"]
+    )
 
 def guardar_ventas(df):
     df.to_csv(FILE_VENTAS, index=False)
 
-# Carga inicial
+# Carga de datos iniciales
 df_inv = cargar_inventario()
 df_ventas = cargar_ventas()
 
 # ------------------------------------------------------------------------------
-# NAVEGACIÓN PRINCIPAL
+# NAVEGACIÓN Y MENÚ PRINCIPAL
 # ------------------------------------------------------------------------------
 st.title("🛏️ Local Mesitas - POS Mobile")
 
@@ -112,34 +133,27 @@ tab_pos, tab_inv, tab_ventas, tab_admin = st.tabs(
 with tab_pos:
     st.subheader("Registrar Venta")
     
-    if df_inv.empty or df_inv["nombre"].dropna().empty:
-        st.warning("No hay productos registrados en el inventario. Agrega productos desde la pestaña Admin.")
+    if df_inv.empty:
+        st.warning("No hay productos registrados en el inventario.")
     else:
-        lista_productos = df_inv["nombre"].tolist()
-        producto_sel = st.selectbox("Seleccionar Producto:", lista_productos)
+        producto_sel = st.selectbox(
+            "Seleccionar Producto:", df_inv["nombre"].tolist()
+        )
         
         prod_data = df_inv[df_inv["nombre"] == producto_sel].iloc[0]
-        stock_disp = int(prod_data["stock"])
-        precio_unit = float(prod_data["precio"])
         
-        st.info(f"**Precio:** ${precio_unit:.2f} | **Stock disponible:** {stock_disp}")
+        st.info(f"**Precio:** ${prod_data['precio']:.2f} | **Stock disponible:** {prod_data['stock']}")
         
-        if stock_disp <= 0:
-            st.error("❌ Producto agotado. No se pueden realizar ventas de este ítem.")
-        else:
-            cantidad = st.number_input(
-                "Cantidad:", 
-                min_value=1, 
-                max_value=stock_disp, 
-                value=1, 
-                step=1
-            )
-            metodo_pago = st.selectbox("Método de Pago:", ["Efectivo", "Transferencia", "Tarjeta"])
-            
-            total = cantidad * precio_unit
-            st.markdown(f"### **Total a Pagar:** :green[${total:.2f}]")
-            
-            if st.button("🚀 REALIZAR VENTA"):
+        cantidad = st.number_input("Cantidad:", min_value=1, max_value=int(prod_data['stock']) if prod_data['stock'] > 0 else 1, value=1)
+        metodo_pago = st.selectbox("Método de Pago:", ["Efectivo", "Transferencia", "Tarjeta"])
+        
+        total = cantidad * prod_data["precio"]
+        st.markdown(f"### **Total a Pagar:** :green[${total:.2f}]")
+        
+        if st.button("🚀 REALIZAR VENTA"):
+            if prod_data["stock"] < cantidad:
+                st.error("¡Stock insuficiente!")
+            else:
                 # Actualizar stock
                 df_inv.loc[df_inv["nombre"] == producto_sel, "stock"] -= cantidad
                 guardar_inventario(df_inv)
@@ -156,10 +170,9 @@ with tab_pos:
                 guardar_ventas(df_ventas)
                 
                 st.success("¡Venta registrada con éxito!")
-                st.rerun()
 
 # ------------------------------------------------------------------------------
-# 2. INVENTARIO
+# 2. INVENTARIO / PRODUCTOS
 # ------------------------------------------------------------------------------
 with tab_inv:
     st.subheader("Inventario de Productos")
@@ -173,7 +186,7 @@ with tab_ventas:
     st.dataframe(df_ventas, use_container_width=True)
 
 # ------------------------------------------------------------------------------
-# 4. ADMINISTRACIÓN
+# 4. MÓDULO DE ADMINISTRACIÓN
 # ------------------------------------------------------------------------------
 with tab_admin:
     st.subheader("Panel de Administración")
@@ -181,6 +194,7 @@ with tab_admin:
     
     if clave_input == CLAVE_ADMIN:
         st.success("Acceso concedido como Administrador.")
+        
         st.markdown("---")
         st.markdown("### Agregar Nuevo Producto")
         
@@ -191,18 +205,17 @@ with tab_admin:
         nuevo_stock = st.number_input("Stock Inicial:", min_value=0, step=1)
         
         if st.button("➕ AGREGAR PRODUCTO"):
-            if nuevo_nombre.strip() and nuevo_id.strip():
+            if nuevo_nombre and nuevo_id:
                 nuevo_prod = pd.DataFrame([{
-                    "id": nuevo_id.strip(),
-                    "nombre": nuevo_nombre.strip(),
-                    "categoria": nueva_cat.strip(),
+                    "id": nuevo_id,
+                    "nombre": nuevo_nombre,
+                    "categoria": nueva_cat,
                     "precio": nuevo_precio,
-                    "stock": int(nuevo_stock)
+                    "stock": nuevo_stock
                 }])
                 df_inv = pd.concat([df_inv, nuevo_prod], ignore_index=True)
                 guardar_inventario(df_inv)
                 st.success(f"Producto '{nuevo_nombre}' agregado correctamente.")
-                st.rerun()
             else:
                 st.error("Por favor completa al menos el ID y Nombre del producto.")
     elif clave_input != "":
