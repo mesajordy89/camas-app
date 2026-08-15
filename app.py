@@ -302,12 +302,19 @@ tab_venta, tab_apartados, tab_inv, tab_historial = st.tabs([
 #            TAB 1: CATÁLOGO Y VENTA
 # ============================================================
 with tab_venta:
-    col_hdr1, col_hdr2 = st.columns([3, 1])
+    col_hdr1, col_hdr2, col_hdr3 = st.columns([2, 1, 1])
     col_hdr1.title("🛋️ Catálogo de Productos")
     
     cant_items = sum([it['cantidad'] for it in st.session_state["carrito"]])
+    
     if col_hdr2.button(f"🛒 Ver Carrito ({cant_items})", type="primary", use_container_width=True):
         st.session_state["abrir_dialogo"] = True
+        st.rerun()
+
+    # BOTÓN PARA VACIAR EL CARRITO DIRECTAMENTE
+    if col_hdr3.button("🗑️ Vaciar Carrito", use_container_width=True, disabled=(cant_items == 0)):
+        st.session_state["carrito"] = []
+        st.session_state["abrir_dialogo"] = False
         st.rerun()
 
     if df_inv.empty:
