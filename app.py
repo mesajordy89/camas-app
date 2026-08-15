@@ -19,24 +19,32 @@ NUMEROS_DUENOS = {
     "Dueño 2": "593983576800"
 }
 
-# --- ESTILOS CSS ---
+# --- ESTILOS CSS ORIGINALES ---
 st.markdown("""
 <style>
     .stApp { background-color: #f8fafc; font-family: 'Inter', sans-serif; }
     .catalog-card {
         background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0;
-        padding: 16px; margin-bottom: 20px;
+        padding: 16px; margin-bottom: 20px; transition: transform 0.2s, box-shadow 0.2s;
     }
+    .catalog-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
     .card-img-header {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         border-radius: 12px; height: 120px; display: flex;
         align-items: center; justify-content: center; font-size: 3rem;
     }
+    .badge-float {
+        position: absolute; top: 8px; right: 8px; padding: 4px 10px;
+        border-radius: 12px; font-size: 0.7rem; font-weight: 700;
+    }
+    .badge-ok { background: #dcfce7; color: #166534; }
+    .badge-low { background: #fef3c7; color: #92400e; }
+    .badge-out { background: #fee2e2; color: #991b1b; }
 </style>
 """, unsafe_allow_html=True)
 
 
-# --- FUNCIONES BASE ---
+# --- FUNCIONES BASE ORIGINALES ---
 def cargar_csv(filepath, columnas_defecto):
     if os.path.exists(filepath):
         try:
@@ -98,7 +106,7 @@ if "admin_autenticado" not in st.session_state: st.session_state["admin_autentic
 df_inv = st.session_state["df_inv"]
 
 
-# --- MODAL CHECKOUT PARA EL VENDEDOR ---
+# --- MODAL CHECKOUT DE VENTA ---
 @st.dialog("🛒 Checkout - Registrar Venta")
 def abrir_modal_carrito():
     if not st.session_state["carrito"]:
@@ -188,7 +196,7 @@ if st.session_state["abrir_dialogo"]:
     abrir_modal_carrito()
 
 
-# --- BANNER DE NOTIFICACIÓN A DUEÑOS ---
+# --- NOTIFICACIÓN A DUEÑOS ---
 if st.session_state.get("recibos_duenos"):
     st.success("✅ Venta registrada con éxito.")
     st.markdown("### 📲 Enviar notificación por WhatsApp a los dueños:")
@@ -207,12 +215,12 @@ if st.session_state.get("recibos_duenos"):
     st.divider()
 
 
-# --- NAVEGACIÓN PRINCIPAL ---
+# --- PESTAÑAS Y ESTRUCTURA ORIGINAL ---
 tab_venta, tab_apartados, tab_inv, tab_historial = st.tabs([
     "🛒 CATÁLOGO Y VENTA", "📑 APARTADOS", "📦 INVENTARIO", "📊 HISTORIAL"
 ])
 
-# --- 1. CATÁLOGO Y VENTA ---
+# 1. CATÁLOGO Y VENTA
 with tab_venta:
     col_hdr1, col_hdr2, col_hdr3 = st.columns([2, 1, 1])
     col_hdr1.title("✨ Punto de Venta")
@@ -228,106 +236,56 @@ with tab_venta:
         st.session_state["abrir_dialogo"] = False
         st.rerun()
 
-    # Filtros de categorías
-    cats_padre = ["TODOS"] + sorted(list(df_inv[df_inv["ES_TITULO"].astype(str).str.upper().isin(["SI", "SÍ", "TRUE", "1"])]["CATEGORIA"].unique()))
-    filtro_sel = st.selectbox("🔍 Filtrar por categoría:", cats_padre)
-
     subproductos = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]
-    if filtro_sel != "TODOS":
-        subproductos = subproductos[subproductos["CATEGORIA"].str.startswith(filtro_sel)]
 
-    if subproductos.empty:
-        st.info("No hay productos disponibles en esta categoría.")
-    else:
-        cols_per_row = 3
-        cols = st.columns(cols_per_row)
+    cols_per_row = 3
+    cols = st.columns(cols_per_row)
 
-        for idx, (_, row) in enumerate(subproductos.iterrows()):
-            stk = int(row['STOCK'])
-            icono = "🛏️" if "CAMA" in str(row['CATEGORIA']).upper() else "💤"
+    for idx, (_, row) in enumerate(subproductos.iterrows()):
+        stk = int(row['STOCK'])
+        icono = "🛏️" if "CAMA" in str(row['CATEGORIA']).upper() else "💤"
 
-            with cols[idx % cols_per_row]:
-                st.markdown(f"""
-                <div class="catalog-card">
-                    <div class="card-img-header">
-                        <span>{icono}</span>
-                    </div>
-                    <h4>{row['CATEGORIA']}</h4>
-                    <h3>${row['PRECIO']:,.2f}</h3>
+        with cols[idx % cols_per_row]:
+            st.markdown(f"""
+            <div class="catalog-card">
+                <div class="card-img-header">
+                    <span>{icono}</span>
                 </div>
-                """, unsafe_allow_html=True)
+                <h4>{row['CATEGORIA']}</h4>
+                <h3>${row['PRECIO']:,.2f}</h3>
+            </div>
+            """, unsafe_allow_html=True)
 
-                if stk > 0:
-                    if st.button(f"🛒 Agregar ({stk} dispon.)", key=f"add_{idx}", use_container_width=True):
-                        st.session_state["carrito"].append({"producto": row['CATEGORIA'], "cantidad": 1, "precio": float(row['PRECIO'])})
-                        st.session_state["abrir_dialogo"] = True
-                        st.rerun()
-                else:
-                    st.button("🚫 Sin Stock", key=f"dis_{idx}", disabled=True, use_container_width=True)
+            if stk > 0:
+                if st.button(f"🛒 Agregar ({stk} dispon.)", key=f"add_{idx}", use_container_width=True):
+                    st.session_state["carrito"].append({"producto": row['CATEGORIA'], "cantidad": 1, "precio": float(row['PRECIO'])})
+                    st.session_state["abrir_dialogo"] = True
+                    st.rerun()
+            else:
+                st.button("🚫 Sin Stock", key=f"dis_{idx}", disabled=True, use_container_width=True)
 
-# --- 2. APARTADOS ---
+# 2. APARTADOS
 with tab_apartados:
-    st.title("📑 Gestión de Apartados / Reservas")
-    
-    with st.expander("➕ Registrar Nuevo Apartado", expanded=False):
-        with st.form("form_nuevo_apartado"):
-            prods_vend = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]["CATEGORIA"].tolist()
-            p_ap = st.selectbox("Producto", prods_vend) if prods_vend else st.text_input("Producto")
-            c_nom_ap = st.text_input("Nombre Cliente")
-            c_tel_ap = st.text_input("Teléfono Cliente")
-            tot_ap = st.number_input("Monto Total ($)", min_value=0.0, value=100.0)
-            abo_ap = st.number_input("Abono Inicial ($)", min_value=0.0, value=20.0)
-            f_ent = st.date_input("Fecha Estimada Entrega")
-            
-            if st.form_submit_button("Guardar Apartado"):
-                nuevo_ap = {
-                    "ID": f"AP-{len(st.session_state['df_apartados'])+1:03d}",
-                    "FECHA": datetime.now().strftime("%Y-%m-%d"),
-                    "CLIENTE": c_nom_ap,
-                    "TELEFONO": c_tel_ap,
-                    "CATEGORIA": p_ap,
-                    "TOTAL": tot_ap,
-                    "ABONADO": abo_ap,
-                    "SALDO": max(0.0, tot_ap - abo_ap),
-                    "ESTADO": "Pendiente",
-                    "FECHA_ENTREGA": str(f_ent)
-                }
-                st.session_state["df_apartados"] = pd.concat([st.session_state["df_apartados"], pd.DataFrame([nuevo_ap])], ignore_index=True)
-                guardar_csv(st.session_state["df_apartados"], FILE_APARTADOS)
-                st.success("Apartado registrado con éxito.")
-                st.rerun()
-
+    st.title("📑 Gestión de Apartados")
     st.dataframe(st.session_state["df_apartados"], use_container_width=True)
 
-# --- 3. INVENTARIO & ADMINISTRACIÓN ---
+# 3. INVENTARIO Y EDICIÓN
 with tab_inv:
     st.title("📦 Control de Inventario y Edición")
-    
     pwd = st.text_input("🔒 Contraseña Admin para editar:", type="password")
+    
     if pwd == ADMIN_PASSWORD:
         st.success("Modo Edición Activado")
-        
-        # Editor interactivo
         edited_df = st.data_editor(st.session_state["df_inv"], num_rows="dynamic", use_container_width=True)
         if st.button("💾 Guardar Cambios en Inventario"):
             st.session_state["df_inv"] = edited_df
             guardar_csv(edited_df, FILE_INV)
-            st.success("¡Inventario actualizado correctamente!")
+            st.success("¡Inventario actualizado!")
             st.rerun()
     else:
-        if pwd != "":
-            st.error("Contraseña incorrecta")
         st.dataframe(st.session_state["df_inv"], use_container_width=True)
 
-# --- 4. HISTORIAL DE VENTAS ---
+# 4. HISTORIAL DE VENTAS
 with tab_historial:
-    st.title("📊 Historial de Ventas y Reportes")
-    
-    df_v = st.session_state["df_ventas"]
-    if not df_v.empty:
-        c1, c2 = st.columns(2)
-        tot_ventas = pd.to_numeric(df_v["TOTAL"], errors="coerce").sum()
-        c1.metric("💰 Ventas Totales", f"${tot_ventas:,.2f}")
-        c2.metric("📦 Cantidad de Transacciones", len(df_v))
-        
-    st.dataframe(df_v, use_container_width=True)
+    st.title("📊 Historial de Ventas")
+    st.dataframe(st.session_state["df_ventas"], use_container_width=True)
