@@ -352,16 +352,104 @@ with tab_venta:
 
 
 # ============================================================
-#               TAB 2, 3 Y 4 (RESTO DEL SISTEMA)
+#                 TAB 2: APARTADOS Y RESERVAS
 # ============================================================
 with tab_apartados:
     st.markdown("### 📑 Gestión de Apartados y Reservas")
-    st.dataframe(df_apartados, use_container_width=True)
+    
+    with st.expander("➕ Registrar Nuevo Apartado", expanded=False):
+        with st.form("form_nuevo_apartado"):
+            col_ap1, col_ap2 = st.columns(2)
+            c_cliente = col_ap1.text_input("👤 Nombre Cliente")
+            c_tel = col_ap2.text_input("📞 Teléfono WhatsApp")
+            
+            prods_inv = df_inv["CATEGORIA"].tolist() if not df_inv.empty else []
+            c_prod = col_ap1.selectbox("🛏️ Producto a Reservar", prods_inv)
+            
+            c_tot = col_ap2.number_input("💵 Precio Total ($)", min_value=0.0, step=5.0)
+            c_abono = col_ap1.number_input("💰 Abono Inicial ($)", min_value=0.0, step=5.0)
+            c_fecha_ent = col_ap2.date_input("📅 Fecha Estimada de Entrega")
 
+            if st.form_submit_button("📌 Registrar Apartado", use_container_width=True):
+                if c_cliente and c_prod and c_tot > 0:
+                    nuevo_id = len(st.session_state["df_apartados"]) + 1
+                    saldo_pend = max(0.0, c_tot - c_abono)
+                    
+                    nuevo_apt = {
+                        "ID": f"APT-{nuevo_id:03d}",
+                        "FECHA": datetime.now().strftime("%Y-%m-%d"),
+                        "CLIENTE": c_cliente,
+                        "TELEFONO": c_tel,
+                        "CATEGORIA": c_prod,
+                        "TOTAL": c_tot,
+                        "ABONADO": c_abono,
+                        "SALDO": saldo_pend,
+                        "ESTADO": "Pendiente" if saldo_pend > 0 else "Liquidado",
+                        "FECHA_ENTREGA": c_fecha_ent.strftime("%Y-%m-%d")
+                    }
+                    
+                    df_apt_act = pd.concat([st.session_state["df_apartados"], pd.DataFrame([nuevo_apt])], ignore_index=True)
+                    guardar_csv(df_apt_act, FILE_APARTADOS)
+                    st.session_state["df_apartados"] = df_apt_act
+                    st.success("✅ Apartado registrado con éxito")
+                    st.rerun()
+                else:
+                    st.error("Por favor completa los datos requeridos.")
+
+    st.write("---")
+    st.dataframe(st.session_state["df_apartados"], use_container_width=True)
+
+
+# ============================================================
+#                 TAB 3: INVENTARIO DE PRODUCTOS
+# ============================================================
 with tab_inv:
-    st.markdown("### 📦 Inventario de Productos")
-    st.dataframe(df_inv, use_container_width=True)
+    st.markdown("### 📦 Control de Inventario y Productos")
+    
+    with st.expander("➕ Agregar Nuevo Producto al Inventario", expanded=False):
+        with st.form("form_nuevo_inv"):
+            col_i1, col_i2 = st.columns(2)
+            p_cat = col_i1.text_input("🏷️ Categoría / Nombre Producto")
+            p_stock = col_i2.number_input("📦 Stock Inicial", min_value=0, value=10, step=1)
+            p_min = col_i1.number_input("⚠️ Stock Mínimo Alerta", min_value=0, value=2, step=1)
+            p_precio = col_i2.number_input("💵 Precio Venta ($)", min_value=0.0, value=0.0, step=5.0)
+            p_costo = col_i1.number_input("💲 Costo ($)", min_value=0.0, value=0.0, step=5.0)
+            p_medida = col_i2.text_input("📏 Medida / Tamaño", value="1.5 Plazas")
 
+            if st.form_submit_button("💾 Guardar Producto", use_container_width=True):
+                if p_cat:
+                    nuevo_p = {
+                        "CATEGORIA": p_cat,
+                        "STOCK": p_stock,
+                        "STOCK_MINIMO": p_min,
+                        "PRECIO": p_precio,
+                        "COSTO": p_costo,
+                        "MEDIDA": p_medida,
+                        "CAMA_BASE": "NO",
+                        "COLCHON_BASE": "NO"
+                    }
+                    df_inv_act = pd.concat([st.session_state["df_inv"], pd.DataFrame([nuevo_p])], ignore_index=True)
+                    guardar_csv(df_inv_act, FILE_INV)
+                    st.session_state["df_inv"] = df_inv_act
+                    st.success("✅ Producto agregado correctamente")
+                    st.rerun()
+
+    st.write("---")
+    
+    # Edición de stock rápido
+    st.dataframe(st.session_state["df_inv"], use_container_width=True)
+
+
+# ============================================================
+#                 TAB 4: HISTORIAL DE VENTAS
+# ============================================================
 with tab_historial:
-    st.markdown("### 📊 Historial de Ventas")
-    st.dataframe(df_ventas, use_container_width=True)
+    st.markdown("### 📊 Historial de Ventas Registradas")
+    
+    if st.session_state["df_ventas"].empty:
+        st.info("No hay registro de ventas realizadas.")
+    else:
+        st.dataframe(st.session_state["df_ventas"], use_container_width=True)
+        
+        tot_recaudado = st.session_state["df_ventas"]["TOTAL"].sum() if "TOTAL" in st.session_state["df_ventas"].columns else 0.0
+        st.metric(label="💰 Total Recaudado en Ventas", value=f"${tot_recaudado:,.2f}")
