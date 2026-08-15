@@ -7,27 +7,22 @@ import urllib.parse
 # Configuración de página
 st.set_page_config(page_title="Local Mesitas - POS", layout="wide", initial_sidebar_state="collapsed")
 
-# Clave de administración
 ADMIN_PASSWORD = "admin"
 
-# Rutas de archivos
 FILE_INV = "inventario_mesitas.csv"
 FILE_VENTAS = "ventas_mesitas.csv"
 FILE_APARTADOS = "apartados_mesitas.csv"
 
-# Diccionario de WhatsApp
 NUMEROS_WHATSAPP = {
     "Vendedor 1 (0990847819)": "593990847819",
     "Vendedor 2 (0983576800)": "593983576800"
 }
 
-# --- ESTILOS CSS AVANZADOS ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
-    /* Estilos globales */
     .stApp { background-color: #f1f5f9; }
 
-    /* Tarjetas del Catálogo estilo E-commerce */
     .catalog-card {
         background: #ffffff;
         border-radius: 16px;
@@ -39,13 +34,11 @@ st.markdown("""
         display: flex;
         flex-direction: column;
     }
-    
     .catalog-card:hover {
         transform: translateY(-4px);
         box-shadow: 0 12px 24px rgba(37, 99, 235, 0.12);
         border-color: #3b82f6;
     }
-
     .card-img-placeholder {
         background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
         height: 110px;
@@ -55,7 +48,6 @@ st.markdown("""
         font-size: 3rem;
         color: #ffffff;
     }
-
     .card-body {
         padding: 16px;
         flex-grow: 1;
@@ -63,7 +55,6 @@ st.markdown("""
         flex-direction: column;
         justify-content: space-between;
     }
-
     .card-title {
         font-size: 1.05rem;
         font-weight: 700;
@@ -75,21 +66,18 @@ st.markdown("""
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
-
     .card-footer-info {
         display: flex;
         justify-content: space-between;
         align-items: center;
         margin-top: 10px;
     }
-
     .card-price {
         font-size: 1.35rem;
         font-weight: 800;
         color: #2563eb;
     }
 
-    /* Badges */
     .badge {
         padding: 4px 10px;
         border-radius: 12px;
@@ -101,7 +89,6 @@ st.markdown("""
     .badge-low { background: #fef3c7; color: #b45309; }
     .badge-out { background: #fee2e2; color: #b91c1c; }
 
-    /* Estilo Combo Promocional */
     .promo-banner {
         background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
         color: #ffffff;
@@ -114,7 +101,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- FUNCIONES DE CARGA Y DATOS ---
+# --- FUNCIONES BASE ---
 def cargar_csv(filepath, columnas_defecto):
     if os.path.exists(filepath):
         try:
@@ -183,7 +170,7 @@ def verificar_admin():
         return True
 
 
-# --- INICIALIZACIÓN DE ESTADO ---
+# --- INICIALIZACIÓN ---
 COLS_INV = ["CATEGORIA", "STOCK", "STOCK_MINIMO", "PRECIO", "COSTO", "MEDIDA", "CAMA_BASE", "COLCHON_BASE", "ES_TITULO", "PADRE"]
 COLS_VENTAS = ["FECHA", "CATEGORIA", "CANTIDAD", "PRECIO_UNITARIO", "TOTAL", "ABONADO", "SALDO_PENDIENTE", "METODO_PAGO", "CLIENTE", "CEDULA", "TELEFONO", "CORREO", "DIRECCION", "ESTADO", "FOTO"]
 COLS_APARTADOS = ["ID", "FECHA", "CLIENTE", "TELEFONO", "CATEGORIA", "TOTAL", "ABONADO", "SALDO", "ESTADO", "FECHA_ENTREGA"]
@@ -205,7 +192,6 @@ for col in COLS_INV:
 
 df_inv = st.session_state["df_inv"]
 
-# Redirección a WhatsApp
 if st.session_state["redirect_url"]:
     url = st.session_state["redirect_url"]
     st.session_state["redirect_url"] = None
@@ -213,15 +199,15 @@ if st.session_state["redirect_url"]:
     st.success("Redirigiendo a WhatsApp...")
 
 
-# --- VENTANA MODAL (EMERGENTE) PARA EL CARRITO ---
-@st.dialog("🛒 Carrito de Compras & Checkout")
+# --- VENTANA MODAL DIRECTA ---
+@st.dialog("🛒 Resumen de Compra & Checkout")
 def abrir_modal_carrito():
     if not st.session_state["carrito"]:
         st.info("El carrito de compras está vacío actualmente.")
         return
 
     subtotal = 0.0
-    st.write("### Productos seleccionados")
+    st.write("### Productos en la Orden")
     
     for i, item in enumerate(list(st.session_state["carrito"])):
         tot_item = item["cantidad"] * item["precio"]
@@ -235,6 +221,12 @@ def abrir_modal_carrito():
             st.rerun()
 
     st.divider()
+
+    # BOTÓN PARA VOLVER Y SELECCIONAR MÁS PRODUCTOS
+    if st.button("➕ Agregar más productos del catálogo", use_container_width=True):
+        st.rerun()
+
+    st.write("")
     descuento = st.number_input("🏷️ Descuento General ($)", min_value=0.0, max_value=float(subtotal), value=0.0)
     total_final = max(0.0, subtotal - descuento)
     
@@ -249,7 +241,7 @@ def abrir_modal_carrito():
         c_dir = st.text_input("📍 Dirección Entrega", value="")
         destino_recibo = st.selectbox("📲 Enviar Recibo por WhatsApp", list(NUMEROS_WHATSAPP.keys()))
 
-        if st.form_submit_button("💰 FINALIZAR COMPRA", use_container_width=True, type="primary"):
+        if st.form_submit_button("💰 FINALIZAR COMPRA Y EMITIR RECIBO", use_container_width=True, type="primary"):
             df_inv_local = st.session_state["df_inv"]
             for item in st.session_state["carrito"]:
                 df_inv_local.loc[df_inv_local["CATEGORIA"] == item["producto"], "STOCK"] -= item["cantidad"]
@@ -295,10 +287,9 @@ tab_venta, tab_apartados, tab_inv, tab_historial = st.tabs([
 
 
 # ============================================================
-#            TAB 1: CATÁLOGO Y VENTA (MODERNO)
+#            TAB 1: CATÁLOGO Y VENTA
 # ============================================================
 with tab_venta:
-    # Encabezado superior con botón flotante al Carrito Modal
     col_hdr1, col_hdr2 = st.columns([3, 1])
     col_hdr1.title("🛋️ Catálogo de Productos")
     
@@ -311,7 +302,7 @@ with tab_venta:
     else:
         subproductos = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]
 
-        # 1. COMBO PROMOCIONAL ESTILIZADO
+        # 1. COMBO PROMOCIONAL
         camas_disponibles = subproductos[subproductos["CATEGORIA"].str.contains("CAMA", case=False, na=False) & (subproductos["STOCK"] > 0)]["CATEGORIA"].tolist()
         colchones_disponibles = subproductos[subproductos["CATEGORIA"].str.contains("COLCHON|COLCHÓN", case=False, na=False) & (subproductos["STOCK"] > 0)]["CATEGORIA"].tolist()
 
@@ -330,17 +321,17 @@ with tab_venta:
                 if cb4.button("⚡ Añadir Combo", type="primary", use_container_width=True):
                     st.session_state["carrito"].append({"producto": sel_c, "cantidad": 1, "precio": round(p_combo * 0.5, 2)})
                     st.session_state["carrito"].append({"producto": sel_m, "cantidad": 1, "precio": round(p_combo * 0.5, 2)})
-                    st.toast("✅ Combo agregado al carrito")
-                    st.rerun()
+                    # ABRE EL MODAL DIRECTAMENTE AL AÑADIR
+                    abrir_modal_carrito()
 
         st.divider()
 
-        # 2. BÚSQUEDA Y FILTROS
+        # 2. BÚSQUEDA
         search_query = st.text_input("🔍 Buscar por nombre o tipo...", placeholder="Ej: Cama tapizada, Colchón...")
         if search_query:
             subproductos = subproductos[subproductos["CATEGORIA"].str.contains(search_query, case=False, na=False)]
 
-        # 3. GRILLA DE CATÁLOGO (CARDS MODERNAS)
+        # 3. GRILLA DE CATÁLOGO
         cols_per_row = 4
         cols = st.columns(cols_per_row)
 
@@ -355,7 +346,6 @@ with tab_venta:
             else:
                 badge = f'<span class="badge badge-ok">Stock: {stk}</span>'
 
-            # Selección de Icono visual automático
             icono = "🛏️" if "CAMA" in row['CATEGORIA'].upper() else "💤" if "COLCHON" in row['CATEGORIA'].upper() else "📦"
 
             with cols[idx % cols_per_row]:
@@ -383,14 +373,14 @@ with tab_venta:
                                     item["cantidad"] += 1
                                     encontrado = True
                                 break
-                        if not encontrado:
+                        if not encon:
                             st.session_state["carrito"].append({
                                 "producto": row['CATEGORIA'],
                                 "cantidad": 1,
                                 "precio": float(row['PRECIO'])
                             })
-                        st.toast(f"✅ Agregado: {row['CATEGORIA']}")
-                        st.rerun()
+                        # ABRE EL MODAL DIRECTAMENTE AL AGREGAR
+                        abrir_modal_carrito()
                 else:
                     st.button("Agotado", key=f"dis_{idx}", disabled=True, use_container_width=True)
 
