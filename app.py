@@ -493,6 +493,9 @@ def obtener_icono(categoria):
         categoria
     ).lower()
 
+    if "combo" in texto:
+        return "🎁"
+
     if "cama" in texto:
         return "🛏️"
 
@@ -1205,7 +1208,7 @@ with tab_venta:
                 font-weight:900;
                 color:#0f172a;
             ">
-                ⚡ VENDER PRODUCTO
+                ⚡ VENDER PRODUCTO O COMBO
             </div>
 
             <div style="
@@ -1213,8 +1216,8 @@ with tab_venta:
                 color:#64748b;
                 margin-top:6px;
             ">
-                Elija el tipo de producto,
-                revise su precio y registre la venta.
+                Elija el tipo de producto o seleccione la opción de Combo
+                para vender Cama + Colchón.
             </div>
 
         </div>
@@ -1504,7 +1507,7 @@ with tab_venta:
         st.markdown("---")
 
         # ----------------------------------------------------
-        # SELECCIONAR PRODUCTO
+        # SELECCIONAR PRODUCTO / COMBO
         # ----------------------------------------------------
 
         lista_productos = (
@@ -1513,21 +1516,75 @@ with tab_venta:
             )
         )
 
-        if not lista_productos:
+        OPCION_COMBO = "🎁 Combo (Cama + Colchón)"
+        opciones_venta = [OPCION_COMBO] + lista_productos
 
-            st.info(
-                "📦 No hay productos vendibles."
+        producto_elegido = (
+            st.selectbox(
+                "👉 Seleccione lo que desea vender",
+                opciones_venta,
+                key="venta_producto_final",
             )
+        )
+
+        es_combo = (producto_elegido == OPCION_COMBO)
+
+        if es_combo:
+            camas_disp = [
+                p for p in df_inv["CATEGORIA"].tolist()
+                if "cama" in p.lower() and producto_es_vendible(df_inv, p)
+            ]
+            colchones_disp = [
+                p for p in df_inv["CATEGORIA"].tolist()
+                if ("colchon" in p.lower() or "colchón" in p.lower()) and producto_es_vendible(df_inv, p)
+            ]
+
+            if not camas_disp or not colchones_disp:
+                st.error("⚠️ Debe tener al menos una Cama y un Colchón registrados en el inventario para formar un combo.")
+                st.stop()
+
+            st.info("💡 Al vender un combo se descontará **1 unidad** de la Cama seleccionada y **1 unidad** del Colchón seleccionado.")
+
+            col_cama, col_colchon = st.columns(2)
+            with col_cama:
+                cama_combo = st.selectbox("🛏️ Seleccionar Cama del combo", camas_disp, key="combo_cama_sel")
+                fila_cama = df_inv[df_inv["CATEGORIA"] == cama_combo].iloc[0]
+                stock_cama = int(fila_cama["STOCK"])
+                st.caption(f"Stock disponible de Cama: **{stock_cama}**")
+
+            with col_colchon:
+                colchon_combo = st.selectbox("💤 Seleccionar Colchón del combo", colchones_disp, key="combo_colchon_sel")
+                fila_colchon = df_inv[df_inv["CATEGORIA"] == colchon_combo].iloc[0]
+                stock_colchon = int(fila_colchon["STOCK"])
+                st.caption(f"Stock disponible de Colchón: **{stock_colchon}**")
+
+            precio_sugerido_combo = float(fila_cama["PRECIO"]) + float(fila_colchon["PRECIO"])
+            
+            html(
+                f"""
+                <div style="
+                    background:white;
+                    border:2px solid #cbd5e1;
+                    border-radius:18px;
+                    padding:18px;
+                    margin:10px 0 20px 0;
+                ">
+                    <div style="font-size:24px; font-weight:900;">
+                        🎁 COMBO SELECCIONADO
+                    </div>
+                    <div style="font-size:17px; margin-top:8px;">
+                        • Cama: <b>{cama_combo}</b> (Stock: {stock_cama})<br>
+                        • Colchón: <b>{colchon_combo}</b> (Stock: {stock_colchon})
+                    </div>
+                </div>
+                """
+            )
+
+            stock_disponible = min(stock_cama, stock_colchon)
+            precio_producto = precio_sugerido_combo
+            nombre_producto_visible = f"Combo ({cama_combo} + {colchon_combo})"
 
         else:
-
-            producto_elegido = (
-                st.selectbox(
-                    "👉 Producto que desea vender",
-                    lista_productos,
-                    key="venta_producto_final",
-                )
-            )
 
             fila_producto = df_inv[
                 df_inv[
@@ -1610,30 +1667,34 @@ with tab_venta:
             )
 
 
-            if stock_disponible <= 0:
+        if stock_disponible <= 0:
 
-                st.error(
-                    f"🔴 **{nombre_producto_visible} "
-                    "está agotado.** "
-                    "Entre a INVENTARIO para agregar existencias."
+            st.error(
+                f"🔴 **{nombre_producto_visible} "
+                "no tiene suficiente stock.** "
+                "Entre a INVENTARIO para agregar existencias."
+            )
+
+        else:
+
+            with st.form(
+                "form_venta_principal"
+            ):
+
+                st.markdown(
+                    "### 🧾 2. Datos de la venta"
                 )
 
-            else:
+                a1, a2, a3 = (
+                    st.columns(3)
+                )
 
-                with st.form(
-                    "form_venta_principal"
-                ):
+                with a1:
 
-                    st.markdown(
-                        "### 🧾 2. Datos de la venta"
-                    )
-
-                    a1, a2, a3 = (
-                        st.columns(3)
-                    )
-
-                    with a1:
-
+                    if es_combo:
+                        cantidad = 1
+                        st.number_input("🔢 Cantidad (Combos)", value=1, disabled=True)
+                    else:
                         cantidad = (
                             st.number_input(
                                 "🔢 Cantidad",
@@ -1646,183 +1707,197 @@ with tab_venta:
                             )
                         )
 
-                    with a2:
+                with a2:
 
-                        metodo_pago = (
-                            st.selectbox(
-                                "💳 Forma de pago",
-                                [
-                                    "Efectivo",
-                                    "Transferencia",
-                                    "Tarjeta",
-                                ],
-                            )
-                        )
-
-                    with a3:
-
-                        descuento = (
-                            st.number_input(
-                                "🏷️ Descuento",
-                                min_value=0.0,
-                                max_value=10.0,
-                                value=0.0,
-                                step=1.0,
-                            )
-                        )
-
-                    st.markdown(
-                        "### 👤 3. Datos del cliente"
-                    )
-
-                    nombre_cliente = (
-                        st.text_input(
-                            "👤 Nombre",
-                            value="Cliente General",
-                        )
-                    )
-
-                    b1, b2 = st.columns(
-                        2
-                    )
-
-                    with b1:
-
-                        cedula_cliente = (
-                            st.text_input(
-                                "🆔 Cédula / RUC",
-                                value="S/N",
-                            )
-                        )
-
-                    with b2:
-
-                        telefono_cliente = (
-                            st.text_input(
-                                "📞 Teléfono",
-                                value="",
-                            )
-                        )
-
-                    correo_cliente = (
-                        st.text_input(
-                            "📧 Correo electrónico",
-                            value="",
-                        )
-                    )
-
-                    direccion_cliente = (
-                        st.text_input(
-                            "📍 Dirección de entrega",
-                            value="",
-                        )
-                    )
-
-                    foto_venta = (
-                        st.file_uploader(
-                            "📸 Foto del producto (opcional)",
-                            type=[
-                                "jpg",
-                                "jpeg",
-                                "png",
+                    metodo_pago = (
+                        st.selectbox(
+                            "💳 Forma de pago",
+                            [
+                                "Efectivo",
+                                "Transferencia",
+                                "Tarjeta",
                             ],
-                            key="foto_venta_principal",
                         )
                     )
 
-                    subtotal = (
-                        cantidad
-                        * precio_producto
+                with a3:
+
+                    descuento = (
+                        st.number_input(
+                            "🏷️ Descuento",
+                            min_value=0.0,
+                            max_value=100.0,
+                            value=0.0,
+                            step=1.0,
+                        )
                     )
 
-                    total = max(
-                        0.0,
-                        subtotal
-                        - descuento,
+                st.markdown(
+                    "### 👤 3. Datos del cliente"
+                )
+
+                nombre_cliente = (
+                    st.text_input(
+                        "👤 Nombre",
+                        value="Cliente General",
+                    )
+                )
+
+                b1, b2 = st.columns(
+                    2
+                )
+
+                with b1:
+
+                    cedula_cliente = (
+                        st.text_input(
+                            "🆔 Cédula / RUC",
+                            value="S/N",
+                        )
                     )
 
-                    html(
-                        f"""
-                        <div class="total-card">
+                with b2:
 
-                            <div style="
-                                font-size:15px;
-                                color:#64748b;
-                                font-weight:900;
-                            ">
-                                ✅ 4. TOTAL DE LA VENTA
-                            </div>
+                    telefono_cliente = (
+                        st.text_input(
+                            "📞 Teléfono",
+                            value="",
+                        )
+                    )
 
-                            <div style="
-                                font-size:20px;
-                                font-weight:900;
-                                margin:8px 0;
-                            ">
-                                {cantidad} ×
-                                {nombre_producto_visible}
-                            </div>
+                correo_cliente = (
+                    st.text_input(
+                        "📧 Correo electrónico",
+                        value="",
+                    )
+                )
 
-                            <div style="
-                                color:#475569;
-                            ">
-                                Subtotal:
-                                <b>
-                                    ${subtotal:,.2f}
-                                </b>
-                            </div>
+                direccion_cliente = (
+                    st.text_input(
+                        "📍 Dirección de entrega",
+                        value="",
+                    )
+                )
 
-                            <div style="
-                                color:#dc2626;
-                            ">
-                                Descuento:
-                                <b>
-                                    -${descuento:,.2f}
-                                </b>
-                            </div>
+                foto_venta = (
+                    st.file_uploader(
+                        "📸 Foto del producto (opcional)",
+                        type=[
+                            "jpg",
+                            "jpeg",
+                            "png",
+                        ],
+                        key="foto_venta_principal",
+                    )
+                )
 
-                            <div style="
-                                font-size:44px;
-                                font-weight:900;
-                                color:#1d4ed8;
-                                margin-top:7px;
-                            ">
-                                ${total:,.2f}
-                            </div>
+                subtotal = (
+                    cantidad
+                    * precio_producto
+                )
 
+                total = max(
+                    0.0,
+                    subtotal
+                    - descuento,
+                )
+
+                html(
+                    f"""
+                    <div class="total-card">
+
+                        <div style="
+                            font-size:15px;
+                            color:#64748b;
+                            font-weight:900;
+                        ">
+                            ✅ 4. TOTAL DE LA VENTA
                         </div>
-                        """
+
+                        <div style="
+                            font-size:20px;
+                            font-weight:900;
+                            margin:8px 0;
+                        ">
+                            {cantidad} ×
+                            {nombre_producto_visible}
+                        </div>
+
+                        <div style="
+                            color:#475569;
+                        ">
+                            Subtotal:
+                            <b>
+                                ${subtotal:,.2f}
+                            </b>
+                        </div>
+
+                        <div style="
+                            color:#dc2626;
+                        ">
+                            Descuento:
+                            <b>
+                                -${descuento:,.2f}
+                            </b>
+                        </div>
+
+                        <div style="
+                            font-size:44px;
+                            font-weight:900;
+                            color:#1d4ed8;
+                            margin-top:7px;
+                        ">
+                            ${total:,.2f}
+                        </div>
+
+                    </div>
+                    """
+                )
+
+                st.write("")
+
+                confirmar_venta = (
+                    st.form_submit_button(
+                        "💰 COBRAR Y GUARDAR VENTA",
+                        use_container_width=True,
                     )
+                )
 
-                    st.write("")
+                if confirmar_venta:
 
-                    confirmar_venta = (
-                        st.form_submit_button(
-                            "💰 COBRAR Y GUARDAR VENTA",
-                            use_container_width=True,
+                    if not nombre_cliente.strip():
+
+                        st.warning(
+                            "⚠️ Escriba el nombre del cliente."
                         )
-                    )
 
-                    if confirmar_venta:
+                    elif cantidad > stock_disponible:
 
-                        if not nombre_cliente.strip():
+                        st.error(
+                            "❌ No hay suficiente stock."
+                        )
 
-                            st.warning(
-                                "⚠️ Escriba el nombre del cliente."
+                    else:
+
+                        ruta_foto = (
+                            guardar_foto(
+                                foto_venta
                             )
+                        )
 
-                        elif cantidad > stock_disponible:
+                        if es_combo:
+                            # Descontar 1 cama y 1 colchón
+                            idx_cama = df_inv[df_inv["CATEGORIA"] == cama_combo].index[0]
+                            idx_colchon = df_inv[df_inv["CATEGORIA"] == colchon_combo].index[0]
 
-                            st.error(
-                                "❌ No hay suficiente stock."
-                            )
+                            df_inv.loc[idx_cama, "STOCK"] = max(0, int(df_inv.loc[idx_cama, "STOCK"]) - 1)
+                            df_inv.loc[idx_colchon, "STOCK"] = max(0, int(df_inv.loc[idx_colchon, "STOCK"]) - 1)
+
+                            guardar_csv(df_inv, FILE_INV)
+                            cat_guardar = f"COMBO: {cama_combo} + {colchon_combo}"
+                            msj_exito_det = f"🎉 Venta de Combo registrada. Se descontó 1 unidad de {cama_combo} y 1 de {colchon_combo}."
 
                         else:
-
-                            ruta_foto = (
-                                guardar_foto(
-                                    foto_venta
-                                )
-                            )
 
                             indice_producto = (
                                 df_inv[
@@ -1854,110 +1929,108 @@ with tab_venta:
                                 FILE_INV,
                             )
 
-                            fecha = (
-                                datetime.now()
-                                .strftime(
-                                    "%Y-%m-%d %H:%M"
-                                )
-                            )
+                            cat_guardar = producto_elegido
+                            msj_exito_det = f"🎉 Venta guardada. Quedan {nuevo_stock} unidades de {nombre_producto_visible}."
 
-                            nueva_venta = (
-                                pd.DataFrame(
-                                    [
-                                        {
-                                            "FECHA": fecha,
-                                            "CATEGORIA": producto_elegido,
-                                            "CANTIDAD": cantidad,
-                                            "PRECIO_UNITARIO": precio_producto,
-                                            "TOTAL": total,
-                                            "ABONADO": total,
-                                            "SALDO_PENDIENTE": 0.0,
-                                            "METODO_PAGO": metodo_pago,
-                                            "CLIENTE": nombre_cliente,
-                                            "CEDULA": cedula_cliente,
-                                            "TELEFONO": telefono_cliente,
-                                            "CORREO": correo_cliente,
-                                            "DIRECCION": direccion_cliente,
-                                            "ESTADO": "Pagado y Entregado",
-                                            "FOTO": ruta_foto,
-                                        }
-                                    ]
-                                )
+                        fecha = (
+                            datetime.now()
+                            .strftime(
+                                "%Y-%m-%d %H:%M"
                             )
+                        )
 
-                            df_ventas = pd.concat(
+                        nueva_venta = (
+                            pd.DataFrame(
                                 [
-                                    df_ventas,
-                                    nueva_venta,
-                                ],
-                                ignore_index=True,
+                                    {
+                                        "FECHA": fecha,
+                                        "CATEGORIA": cat_guardar,
+                                        "CANTIDAD": cantidad,
+                                        "PRECIO_UNITARIO": precio_producto,
+                                        "TOTAL": total,
+                                        "ABONADO": total,
+                                        "SALDO_PENDIENTE": 0.0,
+                                        "METODO_PAGO": metodo_pago,
+                                        "CLIENTE": nombre_cliente,
+                                        "CEDULA": cedula_cliente,
+                                        "TELEFONO": telefono_cliente,
+                                        "CORREO": correo_cliente,
+                                        "DIRECCION": direccion_cliente,
+                                        "ESTADO": "Pagado y Entregado",
+                                        "FOTO": ruta_foto,
+                                    }
+                                ]
                             )
+                        )
 
-                            guardar_csv(
+                        df_ventas = pd.concat(
+                            [
                                 df_ventas,
-                                FILE_VENTAS,
-                            )
+                                nueva_venta,
+                            ],
+                            ignore_index=True,
+                        )
 
-                            cuerpo = (
-                                "NUEVA VENTA REGISTRADA\n\n"
-                                f"Cliente: {nombre_cliente}\n"
-                                f"Producto: {cantidad}x "
-                                f"{producto_elegido}\n"
-                                f"Precio unitario: "
-                                f"${precio_producto:,.2f}\n"
-                                f"Descuento: "
-                                f"${descuento:,.2f}\n"
-                                f"Total: "
+                        guardar_csv(
+                            df_ventas,
+                            FILE_VENTAS,
+                        )
+
+                        cuerpo = (
+                            "NUEVA VENTA REGISTRADA\n\n"
+                            f"Cliente: {nombre_cliente}\n"
+                            f"Producto: {cantidad}x "
+                            f"{cat_guardar}\n"
+                            f"Precio unitario: "
+                            f"${precio_producto:,.2f}\n"
+                            f"Descuento: "
+                            f"${descuento:,.2f}\n"
+                            f"Total: "
+                            f"${total:,.2f}\n"
+                            f"Forma de pago: "
+                            f"{metodo_pago}\n"
+                            f"Dirección: "
+                            f"{direccion_cliente}\n"
+                            f"Fecha: {fecha}"
+                        )
+
+                        enviar_correo_venta(
+                            correo_cliente,
+                            "🧾 Recibo de Compra - Local Mesitas",
+                            cuerpo,
+                            ruta_foto,
+                        )
+
+                        st.session_state[
+                            "ultima_operacion_whatsapp"
+                        ] = {
+                            "mensaje": (
+                                "🚨 *NUEVA VENTA REGISTRADA* 🛏️\n\n"
+                                f"👤 *Cliente:* "
+                                f"{nombre_cliente}\n"
+                                f"📞 *Tel:* "
+                                f"{telefono_cliente or 'N/A'}\n"
+                                f"📦 *Producto:* "
+                                f"{cantidad}x "
+                                f"{cat_guardar}\n"
+                                f"💰 *Total:* "
                                 f"${total:,.2f}\n"
-                                f"Forma de pago: "
+                                f"💳 *Pago:* "
                                 f"{metodo_pago}\n"
-                                f"Dirección: "
+                                f"📍 *Dirección:* "
                                 f"{direccion_cliente}\n"
-                                f"Fecha: {fecha}"
+                                f"📅 *Fecha:* "
+                                f"{fecha}"
                             )
+                        }
 
-                            enviar_correo_venta(
-                                correo_cliente,
-                                "🧾 Recibo de Compra - Local Mesitas",
-                                cuerpo,
-                                ruta_foto,
-                            )
+                        st.session_state[
+                            "mensaje_exito"
+                        ] = msj_exito_det
 
-                            st.session_state[
-                                "ultima_operacion_whatsapp"
-                            ] = {
-                                "mensaje": (
-                                    "🚨 *NUEVA VENTA REGISTRADA* 🛏️\n\n"
-                                    f"👤 *Cliente:* "
-                                    f"{nombre_cliente}\n"
-                                    f"📞 *Tel:* "
-                                    f"{telefono_cliente or 'N/A'}\n"
-                                    f"📦 *Producto:* "
-                                    f"{cantidad}x "
-                                    f"{producto_elegido}\n"
-                                    f"💰 *Total:* "
-                                    f"${total:,.2f}\n"
-                                    f"💳 *Pago:* "
-                                    f"{metodo_pago}\n"
-                                    f"📍 *Dirección:* "
-                                    f"{direccion_cliente}\n"
-                                    f"📅 *Fecha:* "
-                                    f"{fecha}"
-                                )
-                            }
+                        st.balloons()
 
-                            st.session_state[
-                                "mensaje_exito"
-                            ] = (
-                                f"🎉 Venta guardada. "
-                                f"Quedan {nuevo_stock} "
-                                f"unidades de "
-                                f"{nombre_producto_visible}."
-                            )
-
-                            st.balloons()
-
-                            st.rerun()
+                        st.rerun()
 
 
 # ============================================================
