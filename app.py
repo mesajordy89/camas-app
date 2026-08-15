@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import os
 from datetime import datetime
@@ -14,7 +13,7 @@ FILE_INV = "inventario_mesitas.csv"
 FILE_VENTAS = "ventas_mesitas.csv"
 FILE_APARTADOS = "apartados_mesitas.csv"
 
-# Teléfonos de los dos dueños (código de país Ecuador 593)
+# Números de los dos dueños (Ecuador +593)
 NUMEROS_DUENOS = {
     "Dueño 1": "593990847819",
     "Dueño 2": "593983576800"
@@ -91,7 +90,7 @@ if "df_inv" not in st.session_state: st.session_state["df_inv"] = cargar_csv(FIL
 if "df_ventas" not in st.session_state: st.session_state["df_ventas"] = cargar_csv(FILE_VENTAS, COLS_VENTAS)
 if "df_apartados" not in st.session_state: st.session_state["df_apartados"] = cargar_csv(FILE_APARTADOS, COLS_APARTADOS)
 if "carrito" not in st.session_state: st.session_state["carrito"] = []
-if "links_auto_open" not in st.session_state: st.session_state["links_auto_open"] = None
+if "recibos_duenos" not in st.session_state: st.session_state["recibos_duenos"] = None
 if "abrir_dialogo" not in st.session_state: st.session_state["abrir_dialogo"] = False
 if "filtro_categoria" not in st.session_state: st.session_state["filtro_categoria"] = "TODOS"
 if "admin_autenticado" not in st.session_state: st.session_state["admin_autenticado"] = False
@@ -124,7 +123,7 @@ def abrir_modal_carrito():
             st.rerun()
 
     st.divider()
-    descuento = st.number_input("🏷️ Descuento ($)", min_value=0.0, max_value=float(subtotal), value=0.0)
+    descuento = st.number_input("🏷️ Descuento General ($)", min_value=0.0, max_value=float(subtotal), value=0.0)
     total_final = max(0.0, subtotal - descuento)
     
     st.markdown(f"### **Total Final: ${total_final:,.2f}**")
@@ -143,7 +142,7 @@ def abrir_modal_carrito():
             c_tel = st.text_input("📞 Teléfono Cliente")
             c_dir = st.text_input("📍 Dirección Entrega")
 
-        if st.form_submit_button("💰 REGISTRAR VENTA Y NOTIFICAR A DUEÑOS", use_container_width=True, type="primary"):
+        if st.form_submit_button("💰 REGISTRAR VENTA Y EMITIR A DUEÑOS", use_container_width=True, type="primary"):
             df_inv_local = st.session_state["df_inv"]
             for item in st.session_state["carrito"]:
                 df_inv_local.loc[df_inv_local["CATEGORIA"] == item["producto"], "STOCK"] -= item["cantidad"]
@@ -178,10 +177,11 @@ def abrir_modal_carrito():
             st.session_state["carrito"] = []
             st.session_state["abrir_dialogo"] = False
             
-            # Generar enlaces automáticos para ambos dueños
-            st.session_state["links_auto_open"] = [
-                generar_link_whatsapp(num, nueva_v_dict) for num in NUMEROS_DUENOS.values()
-            ]
+            # Generar los dos enlaces para los dueños
+            st.session_state["recibos_duenos"] = {
+                nombre: generar_link_whatsapp(num, nueva_v_dict)
+                for nombre, num in NUMEROS_DUENOS.items()
+            }
             st.rerun()
 
 
@@ -189,27 +189,22 @@ if st.session_state["abrir_dialogo"]:
     abrir_modal_carrito()
 
 
-# --- EJECUCIÓN AUTOMÁTICA HACIA AMBOS DUEÑOS ---
-if st.session_state.get("links_auto_open"):
-    links = st.session_state["links_auto_open"]
-    st.success("✅ Venta registrada. Enviando notificación por WhatsApp a ambos dueños...")
+# --- BANNER PARA ENVIAR NOTIFICACIÓN A DUEÑOS ---
+if st.session_state.get("recibos_duenos"):
+    st.success("✅ Venta registrada con éxito.")
+    st.markdown("### 📲 Enviar notificación por WhatsApp a los dueños:")
     
-    # Inyección JS para abrir automáticamente ambas pestañas
-    js_code = f"""
-        <script>
-            window.open('{links[0]}', '_blank');
-            window.open('{links[1]}', '_blank');
-        </script>
-    """
-    components.html(js_code, height=0, width=0)
+    links = st.session_state["recibos_duenos"]
+    col_w1, col_w2, col_w3 = st.columns([2, 2, 1])
     
-    # Respaldo de botones directos
-    c1, c2, c3 = st.columns([2, 2, 1])
-    c1.link_button("📲 Notificar a Dueño 1", links[0], use_container_width=True, type="primary")
-    c2.link_button("📲 Notificar a Dueño 2", links[1], use_container_width=True, type="primary")
-    if c3.button("❌ Cerrar", use_container_width=True):
-        st.session_state["links_auto_open"] = None
-        st.rerun()
+    with col_w1:
+        st.link_button("📲 Notificar a Dueño 1", links["Dueño 1"], type="primary", use_container_width=True)
+    with col_w2:
+        st.link_button("📲 Notificar a Dueño 2", links["Dueño 2"], type="primary", use_container_width=True)
+    with col_w3:
+        if st.button("❌ Cerrar", use_container_width=True):
+            st.session_state["recibos_duenos"] = None
+            st.rerun()
     st.divider()
 
 
