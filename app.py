@@ -295,7 +295,7 @@ tab_venta, tab_apartado, tab_inventario, tab_historial = st.tabs([
 ])
 
 # ------------------------------------------------------------
-# TAB 1: VENDER (AGREGADO FÁCIL Y ENVÍO AUTOMÁTICO)
+# TAB 1: VENDER (CON SCROLL AUTOMÁTICO AL COBRAR)
 # ------------------------------------------------------------
 with tab_venta:
     if df_inv.empty:
@@ -326,13 +326,31 @@ with tab_venta:
                 if stk > 0:
                     if st.button(f"⚡ Cargar para Venta", key=f"btn_quick_add_{i}", use_container_width=True):
                         st.session_state["sel_venta_prod"] = row['CATEGORIA']
+                        st.session_state["hacer_scroll"] = True
                         st.rerun()
                 else:
                     st.button("❌ Sin Stock", key=f"btn_select_dis_{i}", disabled=True, use_container_width=True)
 
         st.markdown("---")
+        
+        # ANCLA HTML PARA DESPLAZAMIENTO AUTOMÁTICO
+        st.markdown('<div id="seccion-busqueda"></div>', unsafe_allow_html=True)
         st.markdown("### ⚡ Búsqueda Rápida y Procesamiento de Venta")
         
+        # SCRIPT PARA SALTAR DIRECTAMENTE AL RECUADRO
+        if st.session_state.get("hacer_scroll", False):
+            st.session_state["hacer_scroll"] = False
+            html("""
+            <script>
+                setTimeout(function() {
+                    var el = parent.document.getElementById('seccion-busqueda');
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 100);
+            </script>
+            """)
+
         lista_productos = obtener_productos_vendibles(df_inv)
         OPCION_COMBO = "🎁 Combo (Cama + Colchón)"
         opciones_venta = [OPCION_COMBO] + lista_productos
@@ -341,7 +359,6 @@ with tab_venta:
         if "sel_venta_prod" in st.session_state and st.session_state["sel_venta_prod"] in opciones_venta:
             idx_default = opciones_venta.index(st.session_state["sel_venta_prod"])
 
-        # BUSCADOR AUTOCOMPLETABLE
         producto_elegido = st.selectbox(
             "🔍 Escribe o selecciona el producto:",
             opciones_venta,
