@@ -267,6 +267,7 @@ html("""
 .header-box { background: linear-gradient(135deg, #0f172a, #1e3a8a); padding:25px; border-radius:20px; color:white; text-align:center; margin-bottom:15px; }
 .info-card { background:white; padding:15px; border-radius:15px; text-align:center; border:1px solid #e2e8f0; }
 .total-card { background: #eff6ff; border:2px solid #3b82f6; border-radius:15px; padding:15px; text-align:center; font-weight:bold; }
+.prod-card { background: white; padding: 18px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 12px; }
 </style>
 """)
 
@@ -304,17 +305,37 @@ st.write("")
 # ============================================================
 
 tab_venta, tab_apartado, tab_inventario, tab_historial = st.tabs([
-    "⚡ VENDER", "📦 APARTADOS", "🛠️ INVENTARIO", "📜 HISTORIAL Y REPORTES"
+    "⚡ VENDER", "📦 APARTADOS", "🛠️ INVENTARIO", "📜 HISTORIAL Y GESTIÓN"
 ])
 
 # ------------------------------------------------------------
-# TAB 1: VENDER
+# TAB 1: VENDER (SELECCIÓN DINÁMICA CON TARJETAS DE PRODUCTO)
 # ------------------------------------------------------------
 with tab_venta:
     if df_inv.empty:
         st.info("📦 No hay productos registrados en el inventario.")
     else:
-        st.markdown("### 📦 Registro de Ventas Directas")
+        st.markdown("### 🛍️ Catálogo Dinámico de Productos")
+        
+        # MOSTRAR TARJETAS VISUALES DE PRODUCTOS DISPONIBLES
+        vendibles = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))].copy()
+        
+        if not vendibles.empty:
+            cols_grid = st.columns(3)
+            for i, (_, row) in enumerate(vendibles.iterrows()):
+                stk_color = "#16a34a" if row['STOCK'] > row['STOCK_MINIMO'] else ("#d97706" if row['STOCK'] > 0 else "#dc2626")
+                with cols_grid[i % 3]:
+                    st.markdown(f"""
+                    <div class="prod-card">
+                        <div style="font-size: 18px; font-weight: bold; color: #1e293b;">✨ {row['CATEGORIA']}</div>
+                        <div style="font-size: 22px; font-weight: 800; color: #2563eb; margin: 8px 0;">${row['PRECIO']:,.2f}</div>
+                        <div style="font-size: 14px; font-weight: 600; color: {stk_color};">Stock: {row['STOCK']} unidades</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        st.markdown("---")
+        st.markdown("### 📦 Procesar Venta Directa")
+        
         lista_productos = obtener_productos_vendibles(df_inv)
         OPCION_COMBO = "🎁 Combo (Cama + Colchón)"
         opciones_venta = [OPCION_COMBO] + lista_productos
@@ -355,7 +376,6 @@ with tab_venta:
                     a1, a2, a3 = st.columns(3)
                     cantidad = 1 if es_combo else a1.number_input("🔢 Cantidad", min_value=1, max_value=stock_disp, value=1)
                     metodo_pago = a2.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
-                    # DESCUENTO MÁXIMO LIMITADO A $10 DÓLARES
                     descuento = a3.number_input("🏷️ Descuento ($ Máx $10)", min_value=0.0, max_value=10.0, value=0.0, step=1.0)
 
                     c_nom = st.text_input("👤 Nombre Cliente", value="Cliente General")
@@ -393,7 +413,6 @@ with tab_venta:
                         st.success("✅ ¡Venta efectuada con éxito!")
                         st.rerun()
 
-        # ÁREA DE ENVIAR RECIBO Y DESCARGAR TRAS FINALIZAR VENTA
         if st.session_state.get("ultima_venta"):
             st.markdown("---")
             st.markdown("### 📄 Opciones de Recibo y Envío")
@@ -561,38 +580,80 @@ with tab_inventario:
         st.dataframe(df_inv, use_container_width=True)
 
 # ------------------------------------------------------------
-# TAB 4: HISTORIAL Y REPORTES (CON ELIMINACIÓN ADMIN)
+# TAB 4: HISTORIAL Y BORRADO SELECCIONABLE CON DATA EDITOR
 # ------------------------------------------------------------
 with tab_historial:
-    st.markdown("### 📜 Historial de Ventas y Filtros")
+    st.markdown("### 📜 Historial de Ventas y Eliminación Seleccionable")
+    
     if not df_ventas.empty:
         csv_data = df_ventas.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
-        
         st.download_button(
-            label="📊 Descargar Historial (Abrir en Excel / CSV)",
+            label="📊 Descargar Historial Completo (Excel / CSV)",
             data=csv_data,
             file_name=f"ventas_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
             use_container_width=True
         )
 
-        st.dataframe(df_ventas, use_container_width=True, hide_index=True)
+        st.markdown("#### 🔍 Selecciona con el check (☑️) las ventas que deseas eliminar:")
+        
+        # AGREGAR COLUMNA DE SELECCIÓN DINÁMICA
+        df_display = df_ventas.copy()
+        df_display.insert(0, "SELECCIONAR", False)
+
+        # TABLA INTERACTIVA CON EDICIÓN HABILITADA PARA MARCAR FILAS
+        df_editado = st.data_editor(
+            df_display,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "SELECCIONAR": st.column_config.CheckboxColumn("Eliminar", default=False),
+                "TOTAL": st.column_config.NumberColumn("Total", format="$%.2f"),
+                "ABONADO": st.column_config.NumberColumn("Abonado", format="$%.2f"),
+                "SALDO_PENDIENTE": st.column_config.NumberColumn("Saldo", format="$%.2f"),
+            },
+            disabled=[col for col in COLUMNAS_VENTAS],
+            key="editor_ventas"
+        )
+
+        filas_seleccionadas = df_editado[df_editado["SELECCIONAR"] == True]
+        cant_seleccionada = len(filas_seleccionadas)
+
+        st.markdown("---")
+        st.markdown("### 🗑️ Panel de Borrado de Registros")
+        
+        col_b1, col_b2 = st.columns([1, 1])
+        with col_b1:
+            st.info(f"📌 Registros marcados para eliminar: **{cant_seleccionada}**")
+        
+        with col_b2:
+            pwd_borrado = st.text_input("🔐 Clave Administrador para borrar", type="password", key="pwd_borrar_sel")
+
+        c_btn1, c_btn2 = st.columns(2)
+        
+        with c_btn1:
+            if st.button("🗑️ ELIMINAR VENTAS SELECCIONADAS", use_container_width=True, disabled=(cant_seleccionada == 0)):
+                if pwd_borrado == CLAVE_ADMIN:
+                    # FILTRAR QUEDÁNDOSE SOLO CON LAS NO SELECCIONADAS
+                    df_filtrado = df_editado[df_editado["SELECCIONAR"] == False].drop(columns=["SELECCIONAR"])
+                    guardar_csv(df_filtrado, FILE_VENTAS)
+                    st.session_state["df_ventas"] = df_filtrado
+                    st.session_state["ultima_venta"] = None
+                    st.success(f"✅ Se eliminaron {cant_seleccionada} registro(s) correctamente.")
+                    st.rerun()
+                else:
+                    st.error("❌ Clave de administrador incorrecta.")
+
+        with c_btn2:
+            if st.button("🔥 BORRAR TODO EL HISTORIAL COMPLETO", use_container_width=True):
+                if pwd_borrado == CLAVE_ADMIN:
+                    df_v_vacio = pd.DataFrame(columns=COLUMNAS_VENTAS)
+                    guardar_csv(df_v_vacio, FILE_VENTAS)
+                    st.session_state["df_ventas"] = df_v_vacio
+                    st.session_state["ultima_venta"] = None
+                    st.success("✅ Se ha vaciado todo el historial de ventas.")
+                    st.rerun()
+                else:
+                    st.error("❌ Clave de administrador incorrecta.")
     else:
         st.info("Sin registros de ventas.")
-
-    st.markdown("---")
-    st.markdown("### 🗑️ Zona de Seguridad - Borrar Historial")
-    with st.expander("⚠️ Abrir Opciones de Eliminación de Ventas"):
-        st.warning("⚠️ **ATENCIÓN:** Esta acción eliminará todo el historial de ventas y reiniciará el valor recaudado a $0.00.")
-        clave_borrado = st.text_input("🔐 Ingrese Clave Administrador para autorizar el borrado", type="password", key="pwd_borrado")
-        
-        if st.button("🔥 ELIMINAR TODO EL HISTORIAL DE VENTAS", use_container_width=True):
-            if clave_borrado == CLAVE_ADMIN:
-                df_v_vacio = pd.DataFrame(columns=COLUMNAS_VENTAS)
-                guardar_csv(df_v_vacio, FILE_VENTAS)
-                st.session_state["df_ventas"] = df_v_vacio
-                st.session_state["ultima_venta"] = None
-                st.success("✅ El historial de ventas se ha borrado correctamente y los contadores han sido reiniciados.")
-                st.rerun()
-            else:
-                st.error("❌ Clave de administrador incorrecta.")
