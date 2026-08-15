@@ -204,6 +204,7 @@ def existe_producto(df, nombre):
 
 if "autenticado" not in st.session_state: st.session_state["autenticado"] = False
 if "ultima_venta" not in st.session_state: st.session_state["ultima_venta"] = None
+if "sel_venta_prod" not in st.session_state: st.session_state["sel_venta_prod"] = None
 
 st.session_state["df_inv"] = cargar_inventario()
 st.session_state["df_ventas"] = cargar_ventas()
@@ -254,6 +255,7 @@ html("""
 .prod-card-v2 { background: white; border-radius: 18px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,0.04); height: 100%; }
 .prod-title { font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 8px; margin-bottom: 4px; min-height: 44px; }
 .prod-price { font-size: 24px; font-weight: 900; color: #2563eb; margin: 6px 0; }
+.form-container { background: white; padding: 20px; border-radius: 15px; border: 2px solid #2563eb; margin-top: 15px; }
 </style>
 """)
 
@@ -295,14 +297,18 @@ tab_venta, tab_apartado, tab_inventario, tab_historial = st.tabs([
 ])
 
 # ------------------------------------------------------------
-# TAB 1: VENDER (CON SCROLL AUTOMÁTICO AL COBRAR)
+# TAB 1: VENDER (FORMULARIO DESPLEGABLE INMEDIATO)
 # ------------------------------------------------------------
 with tab_venta:
     if df_inv.empty:
         st.info("📦 No hay productos registrados en el inventario.")
     else:
-        st.markdown("### 🛍️ Selección Rápida de Productos")
+        st.markdown("### 🛍️ Catálogo de Productos y Selección Directa")
         
+        lista_productos = obtener_productos_vendibles(df_inv)
+        OPCION_COMBO = "🎁 Combo (Cama + Colchón)"
+        opciones_venta = [OPCION_COMBO] + lista_productos
+
         cols_grid = st.columns(3)
         vendibles = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))].copy()
 
@@ -326,125 +332,114 @@ with tab_venta:
                 if stk > 0:
                     if st.button(f"⚡ Cargar para Venta", key=f"btn_quick_add_{i}", use_container_width=True):
                         st.session_state["sel_venta_prod"] = row['CATEGORIA']
-                        st.session_state["hacer_scroll"] = True
                         st.rerun()
                 else:
                     st.button("❌ Sin Stock", key=f"btn_select_dis_{i}", disabled=True, use_container_width=True)
 
         st.markdown("---")
         
-        # ANCLA HTML PARA DESPLAZAMIENTO AUTOMÁTICO
-        st.markdown('<div id="seccion-busqueda"></div>', unsafe_allow_html=True)
-        st.markdown("### ⚡ Búsqueda Rápida y Procesamiento de Venta")
+        # BUSCADOR AUTOCOMPLETABLE O RECUADRO DE SELECCIÓN
+        st.markdown("### 🔍 Búsqueda Manual / Producto Seleccionado")
         
-        # SCRIPT PARA SALTAR DIRECTAMENTE AL RECUADRO
-        if st.session_state.get("hacer_scroll", False):
-            st.session_state["hacer_scroll"] = False
-            html("""
-            <script>
-                setTimeout(function() {
-                    var el = parent.document.getElementById('seccion-busqueda');
-                    if (el) {
-                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                }, 100);
-            </script>
-            """)
-
-        lista_productos = obtener_productos_vendibles(df_inv)
-        OPCION_COMBO = "🎁 Combo (Cama + Colchón)"
-        opciones_venta = [OPCION_COMBO] + lista_productos
-
         idx_default = 0
-        if "sel_venta_prod" in st.session_state and st.session_state["sel_venta_prod"] in opciones_venta:
+        if st.session_state["sel_venta_prod"] in opciones_venta:
             idx_default = opciones_venta.index(st.session_state["sel_venta_prod"])
 
         producto_elegido = st.selectbox(
-            "🔍 Escribe o selecciona el producto:",
+            "Escribe o cambia el producto aquí:",
             opciones_venta,
             index=idx_default,
             key="sel_venta_prod_main",
-            help="Escribe las primeras letras para filtrar al instante"
+            help="Escribe para buscar o selecciona directamente"
         )
-        es_combo = (producto_elegido == OPCION_COMBO)
+        st.session_state["sel_venta_prod"] = producto_elegido
 
-        if es_combo:
-            camas = [p for p in lista_productos if "cama" in p.lower()]
-            colchones = [p for p in lista_productos if "colchon" in p.lower() or "colchón" in p.lower()]
+        # RECUADRO Y FORMULARIO DE COBRO INMEDIATO
+        if producto_elegido:
+            st.markdown('<div class="form-container">', unsafe_allow_html=True)
+            st.markdown(f"#### 💳 Procesar Venta: **{producto_elegido}**")
 
-            if not camas or not colchones:
-                st.error("⚠️ Para vender un combo, debe existir al menos 1 Cama y 1 Colchón disponibles.")
+            es_combo = (producto_elegido == OPCION_COMBO)
+
+            if es_combo:
+                camas = [p for p in lista_productos if "cama" in p.lower()]
+                colchones = [p for p in lista_productos if "colchon" in p.lower() or "colchón" in p.lower()]
+
+                if not camas or not colchones:
+                    st.error("⚠️ Para vender un combo, debe existir al menos 1 Cama y 1 Colchón disponibles.")
+                else:
+                    c1, c2 = st.columns(2)
+                    cama_combo = c1.selectbox("🛏️ Seleccionar Cama", camas)
+                    colchon_combo = c2.selectbox("💤 Seleccionar Colchón", colchones)
+
+                    stock_cama = int(df_inv[df_inv["CATEGORIA"] == cama_combo].iloc[0]["STOCK"])
+                    stock_colchon = int(df_inv[df_inv["CATEGORIA"] == colchon_combo].iloc[0]["STOCK"])
+                    stock_disp = min(stock_cama, stock_colchon)
+
+                    sugerido = float(df_inv[df_inv["CATEGORIA"] == cama_combo].iloc[0]["PRECIO"]) + float(df_inv[df_inv["CATEGORIA"] == colchon_combo].iloc[0]["PRECIO"])
+                    precio_unitario = st.number_input("🏷️ Precio Final Combo ($)", min_value=0.0, value=sugerido, step=5.0)
+                    nombre_venta = f"COMBO: {cama_combo} + {colchon_combo}"
+                    st.info(f"💡 Combos armables en stock: **{stock_disp}** unidades")
             else:
-                c1, c2 = st.columns(2)
-                cama_combo = c1.selectbox("🛏️ Seleccionar Cama", camas)
-                colchon_combo = c2.selectbox("💤 Seleccionar Colchón", colchones)
+                fila = df_inv[df_inv["CATEGORIA"] == producto_elegido].iloc[0]
+                stock_disp = int(fila["STOCK"])
+                precio_unitario = float(fila["PRECIO"])
+                nombre_venta = producto_elegido
 
-                stock_cama = int(df_inv[df_inv["CATEGORIA"] == cama_combo].iloc[0]["STOCK"])
-                stock_colchon = int(df_inv[df_inv["CATEGORIA"] == colchon_combo].iloc[0]["STOCK"])
-                stock_disp = min(stock_cama, stock_colchon)
+            if not es_combo or (camas and colchones):
+                if stock_disp <= 0:
+                    st.error(f"🔴 **{nombre_venta}** se encuentra totalmente agotado.")
+                else:
+                    with st.form("form_venta_directa"):
+                        a1, a2, a3 = st.columns(3)
+                        cantidad = 1 if es_combo else a1.number_input("🔢 Cantidad", min_value=1, max_value=stock_disp, value=1)
+                        metodo_pago = a2.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
+                        descuento = a3.number_input("🏷️ Descuento ($ Máx $10)", min_value=0.0, max_value=10.0, value=0.0, step=1.0)
 
-                sugerido = float(df_inv[df_inv["CATEGORIA"] == cama_combo].iloc[0]["PRECIO"]) + float(df_inv[df_inv["CATEGORIA"] == colchon_combo].iloc[0]["PRECIO"])
-                precio_unitario = st.number_input("🏷️ Precio Final Combo ($)", min_value=0.0, value=sugerido, step=5.0)
-                nombre_venta = f"COMBO: {cama_combo} + {colchon_combo}"
-                st.info(f"💡 Combos armables en stock: **{stock_disp}** unidades")
-        else:
-            fila = df_inv[df_inv["CATEGORIA"] == producto_elegido].iloc[0]
-            stock_disp = int(fila["STOCK"])
-            precio_unitario = float(fila["PRECIO"])
-            nombre_venta = producto_elegido
+                        c_nom = st.text_input("👤 Nombre Cliente", value="Cliente General")
+                        c_ced = st.text_input("🆔 Cédula/RUC", value="S/N")
+                        c_tel = st.text_input("📞 Teléfono", value="")
+                        c_dir = st.text_input("📍 Dirección Entrega", value="")
 
-        if not es_combo or (camas and colchones):
-            if stock_disp <= 0:
-                st.error(f"🔴 **{nombre_venta}** se encuentra totalmente agotado.")
-            else:
-                with st.form("form_venta"):
-                    a1, a2, a3 = st.columns(3)
-                    cantidad = 1 if es_combo else a1.number_input("🔢 Cantidad", min_value=1, max_value=stock_disp, value=1)
-                    metodo_pago = a2.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
-                    descuento = a3.number_input("🏷️ Descuento ($ Máx $10)", min_value=0.0, max_value=10.0, value=0.0, step=1.0)
+                        destino_recibo = st.selectbox(
+                            "📲 Enviar Recibo por WhatsApp (Obligatorio)",
+                            ["Vendedor 1 (0990847819)", "Vendedor 2 (0983576800)"]
+                        )
 
-                    c_nom = st.text_input("👤 Nombre Cliente", value="Cliente General")
-                    c_ced = st.text_input("🆔 Cédula/RUC", value="S/N")
-                    c_tel = st.text_input("📞 Teléfono", value="")
-                    c_dir = st.text_input("📍 Dirección Entrega", value="")
+                        total_final = max(0.0, (cantidad * precio_unitario) - descuento)
+                        st.markdown(f'<div class="total-card">TOTAL A COBRAR: ${total_final:,.2f}</div>', unsafe_allow_html=True)
 
-                    destino_recibo = st.selectbox(
-                        "📲 Enviar Recibo por WhatsApp (Obligatorio)",
-                        ["Vendedor 1 (0990847819)", "Vendedor 2 (0983576800)"]
-                    )
+                        if st.form_submit_button("💰 COMPLETAR VENTA Y ENVIAR RECIBO", use_container_width=True):
+                            if es_combo:
+                                df_inv.loc[df_inv["CATEGORIA"] == cama_combo, "STOCK"] -= 1
+                                df_inv.loc[df_inv["CATEGORIA"] == colchon_combo, "STOCK"] -= 1
+                            else:
+                                df_inv.loc[df_inv["CATEGORIA"] == producto_elegido, "STOCK"] -= cantidad
 
-                    total_final = max(0.0, (cantidad * precio_unitario) - descuento)
-                    st.markdown(f'<div class="total-card">TOTAL A COBRAR: ${total_final:,.2f}</div>', unsafe_allow_html=True)
+                            guardar_csv(df_inv, FILE_INV)
+                            st.session_state["df_inv"] = df_inv
 
-                    if st.form_submit_button("💰 COMPLETAR VENTA Y ENVIAR RECIBO", use_container_width=True):
-                        if es_combo:
-                            df_inv.loc[df_inv["CATEGORIA"] == cama_combo, "STOCK"] -= 1
-                            df_inv.loc[df_inv["CATEGORIA"] == colchon_combo, "STOCK"] -= 1
-                        else:
-                            df_inv.loc[df_inv["CATEGORIA"] == producto_elegido, "STOCK"] -= cantidad
+                            nueva_v_dict = {
+                                "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                                "CATEGORIA": nombre_venta, "CANTIDAD": cantidad,
+                                "PRECIO_UNITARIO": precio_unitario, "TOTAL": total_final,
+                                "ABONADO": total_final, "SALDO_PENDIENTE": 0.0,
+                                "METODO_PAGO": metodo_pago, "CLIENTE": c_nom,
+                                "CEDULA": c_ced, "TELEFONO": c_tel, "CORREO": "",
+                                "DIRECCION": c_dir, "ESTADO": "Pagado y Entregado", "FOTO": "Sin foto"
+                            }
+                            df_v_actualizado = pd.concat([st.session_state["df_ventas"], pd.DataFrame([nueva_v_dict])], ignore_index=True)
+                            guardar_csv(df_v_actualizado, FILE_VENTAS)
+                            st.session_state["df_ventas"] = df_v_actualizado
+                            st.session_state["ultima_venta"] = nueva_v_dict
 
-                        guardar_csv(df_inv, FILE_INV)
-                        st.session_state["df_inv"] = df_inv
+                            num_dest = NUMEROS_WHATSAPP[destino_recibo]
+                            link_wa = generar_link_whatsapp(num_dest, nueva_v_dict)
+                            
+                            st.session_state["redirect_url"] = link_wa
+                            st.rerun()
 
-                        nueva_v_dict = {
-                            "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "CATEGORIA": nombre_venta, "CANTIDAD": cantidad,
-                            "PRECIO_UNITARIO": precio_unitario, "TOTAL": total_final,
-                            "ABONADO": total_final, "SALDO_PENDIENTE": 0.0,
-                            "METODO_PAGO": metodo_pago, "CLIENTE": c_nom,
-                            "CEDULA": c_ced, "TELEFONO": c_tel, "CORREO": "",
-                            "DIRECCION": c_dir, "ESTADO": "Pagado y Entregado", "FOTO": "Sin foto"
-                        }
-                        df_v_actualizado = pd.concat([st.session_state["df_ventas"], pd.DataFrame([nueva_v_dict])], ignore_index=True)
-                        guardar_csv(df_v_actualizado, FILE_VENTAS)
-                        st.session_state["df_ventas"] = df_v_actualizado
-                        st.session_state["ultima_venta"] = nueva_v_dict
-
-                        num_dest = NUMEROS_WHATSAPP[destino_recibo]
-                        link_wa = generar_link_whatsapp(num_dest, nueva_v_dict)
-                        
-                        st.session_state["redirect_url"] = link_wa
-                        st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
         if "redirect_url" in st.session_state and st.session_state["redirect_url"]:
             link_red = st.session_state["redirect_url"]
