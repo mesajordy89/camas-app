@@ -25,7 +25,7 @@ st.set_page_config(
 )
 
 CLAVE_ACCESO = "1234"
-CLAVE_ADMIN = "1234"
+CLAVE_ADMIN = "199818"
 
 FILE_INV = "inventario.csv"
 FILE_VENTAS = "ventas.csv"
