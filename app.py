@@ -1,9 +1,17 @@
 from datetime import datetime
+import io
 import os
 import textwrap
-import urllib.parse
 import pandas as pd
 import streamlit as st
+
+# Intentar cargar reportlab para los comprobantes PDF
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+    HAS_REPORTLAB = True
+except ImportError:
+    HAS_REPORTLAB = False
 
 # ============================================================
 #                 CONFIGURACIÓN GENERAL
@@ -26,21 +34,9 @@ CARPETA_FOTOS = "fotos_ventas"
 os.makedirs(CARPETA_FOTOS, exist_ok=True)
 
 COLUMNAS_VENTAS = [
-    "FECHA",
-    "CATEGORIA",
-    "CANTIDAD",
-    "PRECIO_UNITARIO",
-    "TOTAL",
-    "ABONADO",
-    "SALDO_PENDIENTE",
-    "METODO_PAGO",
-    "CLIENTE",
-    "CEDULA",
-    "TELEFONO",
-    "CORREO",
-    "DIRECCION",
-    "ESTADO",
-    "FOTO",
+    "FECHA", "CATEGORIA", "CANTIDAD", "PRECIO_UNITARIO", "TOTAL",
+    "ABONADO", "SALDO_PENDIENTE", "METODO_PAGO", "CLIENTE", "CEDULA",
+    "TELEFONO", "CORREO", "DIRECCION", "ESTADO", "FOTO"
 ]
 
 # ============================================================
@@ -56,13 +52,17 @@ def guardar_csv(df, ruta):
     df.to_csv(ruta, index=False, encoding="utf-8-sig")
 
 def normalizar_inventario(df):
-    for col in ["CATEGORIA", "STOCK", "PRECIO"]:
+    for col in ["CATEGORIA", "STOCK", "PRECIO", "STOCK_MINIMO"]:
         if col not in df.columns:
-            df[col] = "" if col == "CATEGORIA" else 0
+            if col == "STOCK_MINIMO":
+                df[col] = 1
+            else:
+                df[col] = "" if col == "CATEGORIA" else 0
     df["CATEGORIA"] = df["CATEGORIA"].fillna("").astype(str).str.strip()
     df["STOCK"] = pd.to_numeric(df["STOCK"], errors="coerce").fillna(0).astype(int).clip(lower=0)
+    df["STOCK_MINIMO"] = pd.to_numeric(df["STOCK_MINIMO"], errors="coerce").fillna(1).astype(int).clip(lower=0)
     df["PRECIO"] = pd.to_numeric(df["PRECIO"], errors="coerce").fillna(0.0).clip(lower=0)
-    return df[df["CATEGORIA"] != ""].reset_index(drop=True)[["CATEGORIA", "STOCK", "PRECIO"]]
+    return df[df["CATEGORIA"] != ""].reset_index(drop=True)[["CATEGORIA", "STOCK", "PRECIO", "STOCK_MINIMO"]]
 
 def normalizar_ventas(df):
     for columna in COLUMNAS_VENTAS:
@@ -100,11 +100,9 @@ def cargar_inventario():
             df = pd.DataFrame()
     else:
         df = pd.DataFrame([
-            {"CATEGORIA": "Camas", "STOCK": 0, "PRECIO": 0.0},
-            {"CATEGORIA": "Colchones", "STOCK": 0, "PRECIO": 0.0},
-            {"CATEGORIA": "Armarios Grandes", "STOCK": 0, "PRECIO": 0.0},
-            {"CATEGORIA": "Armarios Pequeños", "STOCK": 0, "PRECIO": 0.0},
-            {"CATEGORIA": "Pajaritas", "STOCK": 0, "PRECIO": 0.0},
+            {"CATEGORIA": "Camas", "STOCK": 5, "PRECIO": 150.0, "STOCK_MINIMO": 2},
+            {"CATEGORIA": "Colchones", "STOCK": 5, "PRECIO": 100.0, "STOCK_MINIMO": 2},
+            {"CATEGORIA": "Armarios Grandes", "STOCK": 2, "PRECIO": 200.0, "STOCK_MINIMO": 1},
         ])
     df = normalizar_inventario(df)
     guardar_csv(df, FILE_INV)
@@ -122,32 +120,46 @@ def cargar_ventas():
     guardar_csv(df, FILE_VENTAS)
     return df
 
-def guardar_foto(archivo, prefijo=""):
-    if archivo is None:
-        return "Sin foto"
-    nombre = f"{prefijo}{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{os.path.basename(archivo.name)}"
-    ruta = os.path.join(CARPETA_FOTOS, nombre)
-    try:
-        with open(ruta, "wb") as f:
-            f.write(archivo.getbuffer())
-        return ruta
-    except Exception:
-        return "Sin foto"
-
-def obtener_icono(categoria):
-    texto = str(categoria).lower()
-    if "combo" in texto: return "🎁"
-    if "cama" in texto: return "🛏️"
-    if "colchon" in texto or "colchón" in texto: return "💤"
-    if "armario" in texto: return "🚪"
-    if "pajarita" in texto: return "🎀"
-    return "📦"
-
-def estado_stock(stock):
-    stock = max(0, int(stock))
-    if stock == 0: return ("🔴 AGOTADO", "#dc2626")
-    if stock <= 2: return ("🟠 POCO STOCK", "#ea580c")
-    return ("🟢 DISPONIBLE", "#16a34a")
+def generar_pdf_recibo(venta_dict):
+    if not HAS_REPORTLAB:
+        return None
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(100, 750, "LOCAL MESITAS - COMPROBANTE DE VENTA")
+    p.setFont("Helvetica", 10)
+    p.drawString(100, 735, f"Fecha: {venta_dict.get('FECHA', '')}")
+    p.line(100, 725, 500, 725)
+    
+    y = 700
+    p.drawString(100, y, f"Cliente: {venta_dict.get('CLIENTE', 'N/A')}")
+    p.drawString(300, y, f"Cédula/RUC: {venta_dict.get('CEDULA', 'N/A')}")
+    y -= 20
+    p.drawString(100, y, f"Teléfono: {venta_dict.get('TELEFONO', 'N/A')}")
+    p.drawString(300, y, f"Estado: {venta_dict.get('ESTADO', 'N/A')}")
+    y -= 30
+    
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(100, y, "Producto / Detalle")
+    p.drawString(300, y, "Cant.")
+    p.drawString(380, y, "Total")
+    y -= 15
+    p.setFont("Helvetica", 10)
+    p.drawString(100, y, str(venta_dict.get('CATEGORIA', '')))
+    p.drawString(300, y, str(venta_dict.get('CANTIDAD', '1')))
+    p.drawString(380, y, f"${float(venta_dict.get('TOTAL', 0)):,.2f}")
+    
+    y -= 40
+    p.line(100, y, 500, y)
+    y -= 20
+    p.drawString(300, y, f"Abonado: ${float(venta_dict.get('ABONADO', 0)):,.2f}")
+    y -= 15
+    p.drawString(300, y, f"Saldo Pendiente: ${float(venta_dict.get('SALDO_PENDIENTE', 0)):,.2f}")
+    
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return buffer
 
 def es_subproducto(nombre): return " - " in str(nombre)
 def obtener_subproductos(df, principal):
@@ -220,7 +232,6 @@ html("""
 .stApp { background:#f1f5f9; font-family: 'Segoe UI', sans-serif; }
 .header-box { background: linear-gradient(135deg, #0f172a, #1e3a8a); padding:25px; border-radius:20px; color:white; text-align:center; margin-bottom:15px; }
 .info-card { background:white; padding:15px; border-radius:15px; text-align:center; border:1px solid #e2e8f0; }
-.product-card { background:white; border:1px solid #e2e8f0; border-radius:18px; padding:15px; text-align:center; margin-bottom:10px; }
 .total-card { background: #eff6ff; border:2px solid #3b82f6; border-radius:15px; padding:15px; text-align:center; font-weight:bold; }
 </style>
 """)
@@ -238,7 +249,6 @@ html("""
 </div>
 """)
 
-# Carga de estado global actualizado
 df_inv = st.session_state["df_inv"]
 df_ventas = st.session_state["df_ventas"]
 
@@ -248,19 +258,19 @@ total_apartados = int(df_ventas["ESTADO"].str.contains("Apartado", case=False, n
 total_stock = int(df_inv["STOCK"].sum()) if not df_inv.empty else 0
 
 r1, r2, r3, r4 = st.columns(4)
-r1.markdown(f'<div class="info-card">💰 Ventas<br><b>${dinero_recibido:,.2f}</b></div>', unsafe_allow_html=True)
+r1.markdown(f'<div class="info-card">💰 Recaudado<br><b>${dinero_recibido:,.2f}</b></div>', unsafe_allow_html=True)
 r2.markdown(f'<div class="info-card">📦 Stock Total<br><b>{total_stock} uds</b></div>', unsafe_allow_html=True)
-r3.markdown(f'<div class="info-card">🧾 Operaciones<br><b>{total_operaciones}</b></div>', unsafe_allow_html=True)
-r4.markdown(f'<div class="info-card">📦 Apartados<br><b>{total_apartados}</b></div>', unsafe_allow_html=True)
+r3.markdown(f'<div class="info-card">🧾 Ventas Totales<br><b>{total_operaciones}</b></div>', unsafe_allow_html=True)
+r4.markdown(f'<div class="info-card">⏳ Apartados Pendientes<br><b>{total_apartados}</b></div>', unsafe_allow_html=True)
 
 st.write("")
 
 # ============================================================
-#                 Navegación
+#                 NAVEGACIÓN PRINCIPAL
 # ============================================================
 
 tab_venta, tab_apartado, tab_inventario, tab_historial = st.tabs([
-    "⚡ VENDER", "📦 APARTADOS", "🛠️ INVENTARIO", "📜 HISTORIAL"
+    "⚡ VENDER", "📦 APARTADOS", "🛠️ INVENTARIO", "📜 HISTORIAL Y REPORTES"
 ])
 
 # ------------------------------------------------------------
@@ -270,7 +280,7 @@ with tab_venta:
     if df_inv.empty:
         st.info("📦 No hay productos registrados en el inventario.")
     else:
-        st.markdown("### 📦 Productos Disponibles")
+        st.markdown("### 📦 Registro de Ventas Directas")
         lista_productos = obtener_productos_vendibles(df_inv)
         OPCION_COMBO = "🎁 Combo (Cama + Colchón)"
         opciones_venta = [OPCION_COMBO] + lista_productos
@@ -283,7 +293,7 @@ with tab_venta:
             colchones = [p for p in lista_productos if "colchon" in p.lower() or "colchón" in p.lower()]
 
             if not camas or not colchones:
-                st.error("⚠️ Para vender un combo, debe tener al menos 1 Cama y 1 Colchón registrados.")
+                st.error("⚠️ Para vender un combo, debe existir al menos 1 Cama y 1 Colchón disponibles.")
             else:
                 c1, c2 = st.columns(2)
                 cama_combo = c1.selectbox("🛏️ Seleccionar Cama", camas)
@@ -294,8 +304,9 @@ with tab_venta:
                 stock_disp = min(stock_cama, stock_colchon)
 
                 sugerido = float(df_inv[df_inv["CATEGORIA"] == cama_combo].iloc[0]["PRECIO"]) + float(df_inv[df_inv["CATEGORIA"] == colchon_combo].iloc[0]["PRECIO"])
-                precio_unitario = st.number_input("🏷️ Precio Final del Combo ($)", min_value=0.0, value=sugerido, step=5.0)
+                precio_unitario = st.number_input("🏷️ Precio Final Combo ($)", min_value=0.0, value=sugerido, step=5.0)
                 nombre_venta = f"COMBO: {cama_combo} + {colchon_combo}"
+                st.info(f"💡 Combos armables en stock: **{stock_disp}** unidades")
         else:
             fila = df_inv[df_inv["CATEGORIA"] == producto_elegido].iloc[0]
             stock_disp = int(fila["STOCK"])
@@ -304,116 +315,151 @@ with tab_venta:
 
         if not es_combo or (camas and colchones):
             if stock_disp <= 0:
-                st.error(f"🔴 **{nombre_venta}** se encuentra agotado.")
+                st.error(f"🔴 **{nombre_venta}** se encuentra totalmente agotado.")
             else:
                 with st.form("form_venta"):
-                    st.markdown("### 🧾 Registrar Transacción")
                     a1, a2, a3 = st.columns(3)
                     cantidad = 1 if es_combo else a1.number_input("🔢 Cantidad", min_value=1, max_value=stock_disp, value=1)
                     metodo_pago = a2.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
                     descuento = a3.number_input("🏷️ Descuento ($)", min_value=0.0, value=0.0)
 
-                    c_nom = st.text_input("👤 Cliente", value="Cliente General")
+                    c_nom = st.text_input("👤 Nombre Cliente", value="Cliente General")
                     c_ced = st.text_input("🆔 Cédula/RUC", value="S/N")
                     c_tel = st.text_input("📞 Teléfono", value="")
-                    c_dir = st.text_input("📍 Dirección", value="")
-                    foto = st.file_uploader("📸 Comprobante/Foto", type=["jpg", "png", "jpeg"])
+                    c_dir = st.text_input("📍 Dirección Entrega", value="")
 
                     total_final = max(0.0, (cantidad * precio_unitario) - descuento)
                     st.markdown(f'<div class="total-card">TOTAL A COBRAR: ${total_final:,.2f}</div>', unsafe_allow_html=True)
 
                     if st.form_submit_button("💰 COMPLETAR VENTA", use_container_width=True):
-                        ruta_foto = guardar_foto(foto)
-                        # Descontar inventario
                         if es_combo:
                             df_inv.loc[df_inv["CATEGORIA"] == cama_combo, "STOCK"] -= 1
                             df_inv.loc[df_inv["CATEGORIA"] == colchon_combo, "STOCK"] -= 1
                         else:
                             df_inv.loc[df_inv["CATEGORIA"] == producto_elegido, "STOCK"] -= cantidad
 
-                        # Guardar cambios
                         guardar_csv(df_inv, FILE_INV)
                         st.session_state["df_inv"] = df_inv
 
-                        # Guardar Venta
-                        nueva_v = pd.DataFrame([{
+                        nueva_v_dict = {
                             "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
                             "CATEGORIA": nombre_venta, "CANTIDAD": cantidad,
                             "PRECIO_UNITARIO": precio_unitario, "TOTAL": total_final,
                             "ABONADO": total_final, "SALDO_PENDIENTE": 0.0,
                             "METODO_PAGO": metodo_pago, "CLIENTE": c_nom,
                             "CEDULA": c_ced, "TELEFONO": c_tel, "CORREO": "",
-                            "DIRECCION": c_dir, "ESTADO": "Pagado y Entregado", "FOTO": ruta_foto
-                        }])
-                        df_v_actualizado = pd.concat([st.session_state["df_ventas"], nueva_v], ignore_index=True)
+                            "DIRECCION": c_dir, "ESTADO": "Pagado y Entregado", "FOTO": "Sin foto"
+                        }
+                        df_v_actualizado = pd.concat([st.session_state["df_ventas"], pd.DataFrame([nueva_v_dict])], ignore_index=True)
                         guardar_csv(df_v_actualizado, FILE_VENTAS)
                         st.session_state["df_ventas"] = df_v_actualizado
 
                         st.success("✅ ¡Venta efectuada con éxito!")
+                        if HAS_REPORTLAB:
+                            pdf_buf = generar_pdf_recibo(nueva_v_dict)
+                            st.download_button("📄 Descargar Recibo PDF", data=pdf_buf, file_name=f"recibo_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf", mime="application/pdf")
                         st.rerun()
 
 # ------------------------------------------------------------
-# TAB 2: APARTADOS
+# TAB 2: APARTADOS Y ABONOS
 # ------------------------------------------------------------
 with tab_apartado:
-    st.markdown("### 📦 Crear Nuevo Apartado")
-    prods_apartado = obtener_productos_vendibles(df_inv)
+    col_ap1, col_ap2 = st.columns([1, 1])
 
-    if not prods_apartado:
-        st.info("No hay productos para apartar.")
-    else:
-        prod_ap = st.selectbox("📦 Seleccionar Producto", prods_apartado, key="sel_ap_prod")
-        fila_ap = df_inv[df_inv["CATEGORIA"] == prod_ap].iloc[0]
-        stk_ap = int(fila_ap["STOCK"])
-        prc_ap = float(fila_ap["PRECIO"])
+    with col_ap1:
+        st.markdown("### 📦 Crear Nuevo Apartado")
+        prods_apartado = obtener_productos_vendibles(df_inv)
 
-        with st.form("form_apartado"):
-            cli_ap = st.text_input("👤 Cliente")
-            ced_ap = st.text_input("🆔 Cédula")
-            tel_ap = st.text_input("📞 Teléfono")
-            cant_ap = st.number_input("🔢 Cantidad", min_value=1, max_value=max(1, stk_ap), value=1)
-            abono_ap = st.number_input("💵 Abono Inicial ($)", min_value=0.0, value=10.0)
+        if prods_apartado:
+            prod_ap = st.selectbox("📦 Seleccionar Producto", prods_apartado, key="sel_ap_prod")
+            fila_ap = df_inv[df_inv["CATEGORIA"] == prod_ap].iloc[0]
+            stk_ap = int(fila_ap["STOCK"])
+            prc_ap = float(fila_ap["PRECIO"])
 
-            tot_ap = cant_ap * prc_ap
-            saldo_ap = max(0.0, tot_ap - abono_ap)
+            with st.form("form_apartado"):
+                cli_ap = st.text_input("👤 Nombre Cliente")
+                ced_ap = st.text_input("🆔 Cédula")
+                tel_ap = st.text_input("📞 Teléfono")
+                cant_ap = st.number_input("🔢 Cantidad", min_value=1, max_value=max(1, stk_ap), value=1)
+                abono_ap = st.number_input("💵 Abono Inicial ($)", min_value=0.0, value=10.0)
 
-            st.markdown(f'<div class="total-card">Total: ${tot_ap:,.2f} | Abono: ${abono_ap:,.2f} | Saldo: ${saldo_ap:,.2f}</div>', unsafe_allow_html=True)
+                tot_ap = cant_ap * prc_ap
+                saldo_ap = max(0.0, tot_ap - abono_ap)
 
-            if st.form_submit_button("💾 GUARDAR APARTADO", use_container_width=True):
-                if not cli_ap.strip():
-                    st.warning("⚠️ Ingrese el nombre del cliente.")
-                elif abono_ap > tot_ap:
-                    st.error("❌ El abono no puede ser superior al total.")
-                else:
-                    est_ap = "Pagado y Entregado" if saldo_ap <= 0 else "Apartado (Pendiente)"
-                    if saldo_ap <= 0:
+                st.markdown(f'<div class="total-card">Total: ${tot_ap:,.2f} | Abono: ${abono_ap:,.2f} | Saldo: ${saldo_ap:,.2f}</div>', unsafe_allow_html=True)
+
+                if st.form_submit_button("💾 GUARDAR APARTADO", use_container_width=True):
+                    if not cli_ap.strip():
+                        st.warning("⚠️ Ingrese el nombre del cliente.")
+                    elif abono_ap > tot_ap:
+                        st.error("❌ El abono no puede superar el total.")
+                    else:
+                        est_ap = "Pagado y Entregado" if saldo_ap <= 0 else "Apartado (Pendiente)"
+                        
                         df_inv.loc[df_inv["CATEGORIA"] == prod_ap, "STOCK"] -= cant_ap
                         guardar_csv(df_inv, FILE_INV)
                         st.session_state["df_inv"] = df_inv
 
-                    nuevo_ap = pd.DataFrame([{
-                        "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "CATEGORIA": prod_ap, "CANTIDAD": cant_ap,
-                        "PRECIO_UNITARIO": prc_ap, "TOTAL": tot_ap,
-                        "ABONADO": abono_ap, "SALDO_PENDIENTE": saldo_ap,
-                        "METODO_PAGO": "Efectivo", "CLIENTE": cli_ap,
-                        "CEDULA": ced_ap, "TELEFONO": tel_ap, "CORREO": "",
-                        "DIRECCION": "", "ESTADO": est_ap, "FOTO": "Sin foto"
-                    }])
+                        nuevo_ap = pd.DataFrame([{
+                            "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "CATEGORIA": prod_ap, "CANTIDAD": cant_ap,
+                            "PRECIO_UNITARIO": prc_ap, "TOTAL": tot_ap,
+                            "ABONADO": abono_ap, "SALDO_PENDIENTE": saldo_ap,
+                            "METODO_PAGO": "Efectivo", "CLIENTE": cli_ap,
+                            "CEDULA": ced_ap, "TELEFONO": tel_ap, "CORREO": "",
+                            "DIRECCION": "", "ESTADO": est_ap, "FOTO": "Sin foto"
+                        }])
 
-                    df_v_act = pd.concat([st.session_state["df_ventas"], nuevo_ap], ignore_index=True)
-                    guardar_csv(df_v_act, FILE_VENTAS)
-                    st.session_state["df_ventas"] = df_v_act
+                        df_v_act = pd.concat([st.session_state["df_ventas"], nuevo_ap], ignore_index=True)
+                        guardar_csv(df_v_act, FILE_VENTAS)
+                        st.session_state["df_ventas"] = df_v_act
 
-                    st.success("✅ Apartado guardado con éxito.")
-                    st.rerun()
+                        st.success("✅ Apartado registrado.")
+                        st.rerun()
+
+    with col_ap2:
+        st.markdown("### 💵 Gestión de Abonos de Pendientes")
+        df_pending = df_ventas[df_ventas["SALDO_PENDIENTE"] > 0].copy()
+
+        if df_pending.empty:
+            st.info("🎉 No hay apartados pendientes de pago.")
+        else:
+            opciones_p = [f"ID {idx}: {row['CLIENTE']} - {row['CATEGORIA']} (Saldo: ${row['SALDO_PENDIENTE']:,.2f})" for idx, row in df_pending.iterrows()]
+            sel_p = st.selectbox("👉 Seleccionar Cliente/Apartado", opciones_p)
+            
+            idx_real = int(sel_p.split(":")[0].replace("ID ", "").strip())
+            row_sel = df_pending.loc[idx_real]
+
+            st.write(f"**Cliente:** {row_sel['CLIENTE']} | **Teléfono:** {row_sel['TELEFONO']}")
+            st.write(f"**Total Deuda:** ${row_sel['TOTAL']:,.2f} | **Saldo Restante:** ${row_sel['SALDO_PENDIENTE']:,.2f}")
+
+            nuevo_abono = st.number_input("💵 Monto a Abonar ($)", min_value=0.01, max_value=float(row_sel['SALDO_PENDIENTE']), value=float(row_sel['SALDO_PENDIENTE']))
+
+            if st.button("🤝 REGISTRAR ABONO", use_container_width=True):
+                df_ventas.loc[idx_real, "ABONADO"] += nuevo_abono
+                df_ventas.loc[idx_real, "SALDO_PENDIENTE"] -= nuevo_abono
+                
+                if df_ventas.loc[idx_real, "SALDO_PENDIENTE"] <= 0:
+                    df_ventas.loc[idx_real, "ESTADO"] = "Pagado y Entregado"
+                
+                guardar_csv(df_ventas, FILE_VENTAS)
+                st.session_state["df_ventas"] = df_ventas
+                st.success("✅ ¡Abono procesado con éxito!")
+                st.rerun()
 
 # ------------------------------------------------------------
-# TAB 3: INVENTARIO
+# TAB 3: INVENTARIO Y ALERTAS DE STOCK
 # ------------------------------------------------------------
 with tab_inventario:
-    st.markdown("### 🛠️ Administración de Inventario")
+    st.markdown("### 🛠️ Gestión y Reabastecimiento de Inventario")
     if st.text_input("🔐 Clave Administrador", type="password", key="pwd_inv") == CLAVE_ADMIN:
+        
+        # Alerta de Stock Mínimo
+        agotados = df_inv[df_inv["STOCK"] <= df_inv["STOCK_MINIMO"]]
+        if not agotados.empty:
+            st.warning("⚠️ **Atención: Productos bajo el Stock Mínimo Recomendado**")
+            st.dataframe(agotados[["CATEGORIA", "STOCK", "STOCK_MINIMO"]], hide_index=True, use_container_width=True)
+
         principales = [n for n in df_inv["CATEGORIA"].tolist() if " - " not in str(n)]
         opciones = ["✨ Crear Repositorio Principal", "📦 Crear Producto Simple"] + principales
         opc = st.selectbox("Acción / Categoría Padre", opciones)
@@ -422,19 +468,20 @@ with tab_inventario:
             nom = st.text_input("Nombre de la Categoría Principal (Ej: Camas)")
             if st.button("➕ CREAR REPOSITORIO"):
                 if nom.strip() and not existe_producto(df_inv, nom.strip()):
-                    df_inv = pd.concat([df_inv, pd.DataFrame([{"CATEGORIA": nom.strip(), "STOCK": 0, "PRECIO": 0.0}])], ignore_index=True)
+                    df_inv = pd.concat([df_inv, pd.DataFrame([{"CATEGORIA": nom.strip(), "STOCK": 0, "PRECIO": 0.0, "STOCK_MINIMO": 1}])], ignore_index=True)
                     guardar_csv(df_inv, FILE_INV)
                     st.session_state["df_inv"] = df_inv
                     st.success("Creado correctamente.")
                     st.rerun()
 
         elif opc == "📦 Crear Producto Simple":
-            nom = st.text_input("Nombre del Producto")
-            stk = st.number_input("Stock", min_value=0, value=1)
-            prc = st.number_input("Precio", min_value=0.0, value=10.0)
+            c1, c2, c3 = st.columns(3)
+            nom = c1.text_input("Nombre del Producto")
+            stk = c2.number_input("Stock Inicial", min_value=0, value=1)
+            prc = c3.number_input("Precio ($)", min_value=0.0, value=10.0)
             if st.button("➕ CREAR PRODUCTO"):
                 if nom.strip() and not existe_producto(df_inv, nom.strip()):
-                    df_inv = pd.concat([df_inv, pd.DataFrame([{"CATEGORIA": nom.strip(), "STOCK": stk, "PRECIO": prc}])], ignore_index=True)
+                    df_inv = pd.concat([df_inv, pd.DataFrame([{"CATEGORIA": nom.strip(), "STOCK": stk, "PRECIO": prc, "STOCK_MINIMO": 1}])], ignore_index=True)
                     guardar_csv(df_inv, FILE_INV)
                     st.session_state["df_inv"] = df_inv
                     st.success("Creado correctamente.")
@@ -446,21 +493,34 @@ with tab_inventario:
             if st.button("➕ CREAR SUBPRODUCTO"):
                 full_nom = f"{opc} - {sub_nom.strip()}"
                 if sub_nom.strip() and not existe_producto(df_inv, full_nom):
-                    df_inv = pd.concat([df_inv, pd.DataFrame([{"CATEGORIA": full_nom, "STOCK": stk, "PRECIO": prc}])], ignore_index=True)
+                    df_inv = pd.concat([df_inv, pd.DataFrame([{"CATEGORIA": full_nom, "STOCK": stk, "PRECIO": prc, "STOCK_MINIMO": 1}])], ignore_index=True)
                     guardar_csv(df_inv, FILE_INV)
                     st.session_state["df_inv"] = df_inv
                     st.success("Subproducto creado.")
                     st.rerun()
 
         st.markdown("---")
+        st.subheader("Tabla Completa de Inventario")
         st.dataframe(df_inv, use_container_width=True)
 
 # ------------------------------------------------------------
-# TAB 4: HISTORIAL
+# TAB 4: HISTORIAL Y REPORTES
 # ------------------------------------------------------------
 with tab_historial:
-    st.markdown("### 📜 Historial de Ventas y Registro")
+    st.markdown("### 📜 Historial de Ventas y Filtros")
     if not df_ventas.empty:
+        # Exportación
+        buffer_excel = io.BytesIO()
+        with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+            df_ventas.to_excel(writer, index=False, sheet_name='Ventas')
+        buffer_excel.seek(0)
+        
+        st.download_button(
+            label="📊 Exportar Historial a Excel",
+            data=buffer_excel,
+            file_name=f"ventas_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         st.dataframe(df_ventas, use_container_width=True, hide_index=True)
     else:
         st.info("Sin registros de ventas.")
