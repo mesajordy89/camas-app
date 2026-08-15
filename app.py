@@ -48,6 +48,14 @@ st.markdown("""
     .badge-low { background: #fef3c7; color: #b45309; }
     .badge-out { background: #fee2e2; color: #b91c1c; }
 
+    .cart-container {
+        background-color: #ffffff;
+        border: 2px solid #3b82f6;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 25px;
+    }
+
     .total-card {
         background-color: #f0fdf4;
         border: 1px solid #bbf7d0;
@@ -137,8 +145,8 @@ if "carrito" not in st.session_state:
     st.session_state["carrito"] = []
 if "redirect_url" not in st.session_state:
     st.session_state["redirect_url"] = None
-if "abrir_modal_carrito" not in st.session_state:
-    st.session_state["abrir_modal_carrito"] = False
+if "mostrar_carrito" not in st.session_state:
+    st.session_state["mostrar_carrito"] = False
 
 df_inv = st.session_state["df_inv"]
 df_ventas = st.session_state["df_ventas"]
@@ -150,100 +158,6 @@ if st.session_state["redirect_url"]:
     st.session_state["redirect_url"] = None
     st.markdown(f'<meta http-equiv="refresh" content="0;url={url}">', unsafe_allow_html=True)
     st.success("Redirigiendo a WhatsApp para enviar el comprobante...")
-
-
-# --- VENTANA EMERGENTE MODAL ---
-@st.dialog("🛒 Carrito de Compras")
-def modal_carrito():
-    df_inv_local = st.session_state["df_inv"]
-
-    if not st.session_state["carrito"]:
-        st.info("El carrito está vacío. Agrega productos desde la sección de Combos o el Catálogo.")
-        if st.button("Cerrar Ventana", use_container_width=True):
-            st.session_state["abrir_modal_carrito"] = False
-            st.rerun()
-        return
-
-    subtotal = 0.0
-    st.write("---")
-    
-    # Renderizado de ítems
-    for i, item in enumerate(list(st.session_state["carrito"])):
-        tot_item = item["cantidad"] * item["precio"]
-        subtotal += tot_item
-        c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
-        c1.write(f"**{item['producto']}**")
-        c2.write(f"x{item['cantidad']}")
-        c3.write(f"${tot_item:,.2f}")
-        
-        # Eliminar ítem manteniendo el estado del modal en True
-        if c4.button("❌", key=f"del_cart_item_{i}"):
-            st.session_state["carrito"].pop(i)
-            st.session_state["abrir_modal_carrito"] = True
-            st.rerun()
-
-    st.write("---")
-    descuento = st.number_input("🏷️ Descuento General ($)", min_value=0.0, max_value=float(subtotal), value=0.0, key="desc_general")
-    total_final = max(0.0, subtotal - descuento)
-    
-    st.markdown(f'<div class="total-card">TOTAL A PAGAR: ${total_final:,.2f}</div>', unsafe_allow_html=True)
-    st.write("")
-
-    with st.form("form_finalizar_venta_pers"):
-        m_pago = st.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
-        c_nom = st.text_input("👤 Nombre Cliente", value="Cliente General")
-        c_ced = st.text_input("🆔 Cédula/RUC", value="S/N")
-        c_tel = st.text_input("📞 Teléfono", value="")
-        c_dir = st.text_input("📍 Dirección Entrega", value="")
-
-        destino_recibo = st.selectbox(
-            "📲 Enviar Recibo por WhatsApp",
-            list(NUMEROS_WHATSAPP.keys())
-        )
-
-        if st.form_submit_button("💰 FINALIZAR VENTA Y REGISTRAR", use_container_width=True):
-            for item in st.session_state["carrito"]:
-                df_inv_local.loc[df_inv_local["CATEGORIA"] == item["producto"], "STOCK"] -= item["cantidad"]
-            
-            guardar_csv(df_inv_local, FILE_INV)
-            st.session_state["df_inv"] = df_inv_local
-
-            resumen_prods = " + ".join([f"{it['producto']} (x{it['cantidad']})" for it in st.session_state["carrito"]])
-            cant_total = sum([it['cantidad'] for it in st.session_state["carrito"]])
-
-            nueva_v_dict = {
-                "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "CATEGORIA": resumen_prods,
-                "CANTIDAD": cant_total,
-                "PRECIO_UNITARIO": total_final,
-                "TOTAL": total_final,
-                "ABONADO": total_final,
-                "SALDO_PENDIENTE": 0.0,
-                "METODO_PAGO": m_pago,
-                "CLIENTE": c_nom,
-                "CEDULA": c_ced,
-                "TELEFONO": c_tel,
-                "CORREO": "",
-                "DIRECCION": c_dir,
-                "ESTADO": "Pagado y Entregado",
-                "FOTO": "Sin foto"
-            }
-
-            df_v_act = pd.concat([st.session_state["df_ventas"], pd.DataFrame([nueva_v_dict])], ignore_index=True)
-            guardar_csv(df_v_act, FILE_VENTAS)
-            st.session_state["df_ventas"] = df_v_act
-            st.session_state["ultima_venta"] = nueva_v_dict
-            st.session_state["carrito"] = []
-            st.session_state["abrir_modal_carrito"] = False
-
-            num_dest = NUMEROS_WHATSAPP[destino_recibo]
-            st.session_state["redirect_url"] = generar_link_whatsapp(num_dest, nueva_v_dict)
-            st.rerun()
-
-
-# --- ACTIVACIÓN PERSISTENTE DE LA VENTANA EMERGENTE ---
-if st.session_state["abrir_modal_carrito"]:
-    modal_carrito()
 
 
 # --- INTERFAZ PRINCIPAL CON PESTAÑAS ---
@@ -285,21 +199,117 @@ with tab_venta:
             st.write("")
             if c_combo4.button("⚡ AGREGAR COMBO", use_container_width=True, type="primary"):
                 if agregar_combo_al_carrito(sel_cama, sel_colchon, precio_combo):
+                    st.session_state["mostrar_carrito"] = True
                     st.success("✅ Combo agregado al carrito")
                     st.rerun()
 
         st.markdown("---")
 
-        # 2. Botón principal para abrir la ventana emergente
+        # 2. BOTÓN DE APERTURA DIRECTA DEL CARRITO
         cant_items_cart = sum([item['cantidad'] for item in st.session_state["carrito"]])
-        if st.button(f"🛒 VER Y EDITAR CARRITO DE COMPRAS ({cant_items_cart} productos)", type="primary", use_container_width=True):
-            st.session_state["abrir_modal_carrito"] = True
+        texto_btn = f"🛒 VER Y EDITAR CARRITO DE COMPRAS ({cant_items_cart} productos)"
+        
+        if st.button(texto_btn, type="primary", use_container_width=True):
+            st.session_state["mostrar_carrito"] = not st.session_state["mostrar_carrito"]
             st.rerun()
+
+        # 3. SECCIÓN DIRECTA DEL CARRITO EN LA MISMA PÁGINA
+        if st.session_state["mostrar_carrito"]:
+            st.markdown('<div class="cart-container">', unsafe_allow_html=True)
+            st.markdown("### 🛒 Carrito de Compras Actual")
+            
+            if not st.session_state["carrito"]:
+                st.info("El carrito está vacío.")
+            else:
+                subtotal = 0.0
+                st.write("---")
+                
+                # Listar productos
+                for i, item in enumerate(list(st.session_state["carrito"])):
+                    tot_item = item["cantidad"] * item["precio"]
+                    subtotal += tot_item
+                    c1, c2, c3, c4 = st.columns([4, 2, 2, 1])
+                    c1.write(f"**{item['producto']}**")
+                    c2.write(f"x{item['cantidad']}")
+                    c3.write(f"${tot_item:,.2f}")
+                    
+                    # Eliminar producto sin cerrar la sección
+                    if c4.button("❌", key=f"del_cart_item_{i}"):
+                        st.session_state["carrito"].pop(i)
+                        st.rerun()
+
+                st.write("---")
+                
+                # BOTÓN AÑADIR MÁS PRODUCTOS
+                if st.button("➕ Añadir más productos (Ir al Catálogo)", use_container_width=True):
+                    st.markdown('<script>window.scrollTo(0, document.body.scrollHeight);</script>', unsafe_allow_html=True)
+                    st.toast("👇 Selecciona productos en el catálogo de abajo")
+
+                st.write("")
+                descuento = st.number_input("🏷️ Descuento General ($)", min_value=0.0, max_value=float(subtotal), value=0.0, key="desc_general")
+                total_final = max(0.0, subtotal - descuento)
+                
+                st.markdown(f'<div class="total-card">TOTAL A PAGAR: ${total_final:,.2f}</div>', unsafe_allow_html=True)
+                st.write("")
+
+                with st.form("form_finalizar_venta_directa"):
+                    m_pago = st.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
+                    c_nom = st.text_input("👤 Nombre Cliente", value="Cliente General")
+                    c_ced = st.text_input("🆔 Cédula/RUC", value="S/N")
+                    c_tel = st.text_input("📞 Teléfono", value="")
+                    c_dir = st.text_input("📍 Dirección Entrega", value="")
+
+                    destino_recibo = st.selectbox(
+                        "📲 Enviar Recibo por WhatsApp",
+                        list(NUMEROS_WHATSAPP.keys())
+                    )
+
+                    if st.form_submit_button("💰 FINALIZAR VENTA Y REGISTRAR", use_container_width=True):
+                        df_inv_local = st.session_state["df_inv"]
+                        for item in st.session_state["carrito"]:
+                            df_inv_local.loc[df_inv_local["CATEGORIA"] == item["producto"], "STOCK"] -= item["cantidad"]
+                        
+                        guardar_csv(df_inv_local, FILE_INV)
+                        st.session_state["df_inv"] = df_inv_local
+
+                        resumen_prods = " + ".join([f"{it['producto']} (x{it['cantidad']})" for it in st.session_state["carrito"]])
+                        cant_total = sum([it['cantidad'] for it in st.session_state["carrito"]])
+
+                        nueva_v_dict = {
+                            "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "CATEGORIA": resumen_prods,
+                            "CANTIDAD": cant_total,
+                            "PRECIO_UNITARIO": total_final,
+                            "TOTAL": total_final,
+                            "ABONADO": total_final,
+                            "SALDO_PENDIENTE": 0.0,
+                            "METODO_PAGO": m_pago,
+                            "CLIENTE": c_nom,
+                            "CEDULA": c_ced,
+                            "TELEFONO": c_tel,
+                            "CORREO": "",
+                            "DIRECCION": c_dir,
+                            "ESTADO": "Pagado y Entregado",
+                            "FOTO": "Sin foto"
+                        }
+
+                        df_v_act = pd.concat([st.session_state["df_ventas"], pd.DataFrame([nueva_v_dict])], ignore_index=True)
+                        guardar_csv(df_v_act, FILE_VENTAS)
+                        st.session_state["df_ventas"] = df_v_act
+                        st.session_state["ultima_venta"] = nueva_v_dict
+                        st.session_state["carrito"] = []
+                        st.session_state["mostrar_carrito"] = False
+
+                        num_dest = NUMEROS_WHATSAPP[destino_recibo]
+                        st.session_state["redirect_url"] = generar_link_whatsapp(num_dest, nueva_v_dict)
+                        st.rerun()
+
+            st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("---")
 
-        # 3. Catálogo de Productos
-        st.markdown("### 🛍️ Catálogo de Productos")
+        # 4. CATÁLOGO DE PRODUCTOS ABAJO
+        st.markdown("<h3 id='catalogo-section'>🛍️ Catálogo de Productos</h3>", unsafe_allow_html=True)
         
         cols_grid = st.columns(3)
         vendibles = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))].copy()
@@ -330,12 +340,13 @@ with tab_venta:
                                     item["cantidad"] += 1
                                     encontrado = True
                                 break
-                        if not encontrado:
+                        if not encon:
                             st.session_state["carrito"].append({
                                 "producto": row['CATEGORIA'],
                                 "cantidad": 1,
                                 "precio": float(row['PRECIO'])
                             })
+                        st.session_state["mostrar_carrito"] = True
                         st.rerun()
                 else:
                     st.button("❌ Sin Stock", key=f"btn_select_dis_{i}", disabled=True, use_container_width=True)
