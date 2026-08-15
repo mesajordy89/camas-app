@@ -715,6 +715,10 @@ with tab_venta:
                         df_ventas = pd.concat([df_ventas, nueva_venta], ignore_index=True)
                         guardar_csv(df_ventas, FILE_VENTAS)
 
+                        if correo_cliente:
+                            cuerpo_mail = f"Hola {nombre_cliente},\n\nGracias por tu compra en Local Mesitas.\nProducto: {cat_guardar}\nTotal: ${total:,.2f}\nEstado: Pagado y Entregado\n\n¡Gracias por preferirnos!"
+                            enviar_correo_venta(correo_cliente, "Comprobante de Compra - Local Mesitas", cuerpo_mail, ruta_foto)
+
                         st.session_state["ultima_operacion_whatsapp"] = {
                             "mensaje": f"🚨 *NUEVA VENTA* 🛏️\n👤 *Cliente:* {nombre_cliente}\n📦 *Producto:* {cantidad}x {cat_guardar}\n💰 *Total:* ${total:,.2f}\n💳 *Pago:* {metodo_pago}"
                         }
@@ -822,6 +826,14 @@ with tab_apartado:
 
                         st.session_state["mensaje_exito"] = "✅ Apartado guardado con éxito."
                         st.rerun()
+
+    st.markdown("### 📋 Listado de Apartados Registrados")
+    if not df_ventas.empty:
+        df_solo_apartados = df_ventas[df_ventas["ESTADO"].str.contains("Apartado", case=False, na=False)]
+        if df_solo_apartados.empty:
+            st.info("No existen apartados pendientes de pago.")
+        else:
+            st.dataframe(df_solo_apartados, use_container_width=True)
 
 
 # ============================================================
