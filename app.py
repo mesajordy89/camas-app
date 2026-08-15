@@ -168,7 +168,7 @@ def generar_link_whatsapp(numero, venta_dict):
 📅 *Fecha:* {venta_dict.get('FECHA')}
 👤 *Cliente:* {venta_dict.get('CLIENTE')}
 🆔 *Cédula:* {venta_dict.get('CEDULA')}
-📦 *Producto:* {venta_dict.get('CATEGORIA')} (x{venta_dict.get('CANTIDAD')})
+📦 *Detalle:* {venta_dict.get('CATEGORIA')}
 💰 *Total:* ${venta_dict.get('TOTAL'):,.2f}
 💳 *Pago:* {venta_dict.get('METODO_PAGO')}
 📌 *Estado:* {venta_dict.get('ESTADO')}
@@ -204,7 +204,7 @@ def existe_producto(df, nombre):
 
 if "autenticado" not in st.session_state: st.session_state["autenticado"] = False
 if "ultima_venta" not in st.session_state: st.session_state["ultima_venta"] = None
-if "sel_venta_prod" not in st.session_state: st.session_state["sel_venta_prod"] = None
+if "carrito" not in st.session_state: st.session_state["carrito"] = []
 
 st.session_state["df_inv"] = cargar_inventario()
 st.session_state["df_ventas"] = cargar_ventas()
@@ -255,7 +255,6 @@ html("""
 .prod-card-v2 { background: white; border-radius: 18px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,0.04); height: 100%; }
 .prod-title { font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 8px; margin-bottom: 4px; min-height: 44px; }
 .prod-price { font-size: 24px; font-weight: 900; color: #2563eb; margin: 6px 0; }
-.form-container { background: white; padding: 20px; border-radius: 15px; border: 2px solid #2563eb; margin-top: 15px; }
 </style>
 """)
 
@@ -289,6 +288,129 @@ r4.markdown(f'<div class="info-card">⏳ Apartados Pendientes<br><b>{total_apart
 st.write("")
 
 # ============================================================
+#                 VENTANA MODAL DE VENTA (DIALOG)
+# ============================================================
+
+@st.dialog("🛒 Procesar Venta / Carrito de Compras")
+def abrir_modal_venta():
+    st.write("Agrega los productos que el cliente desea comprar:")
+
+    df_inv_local = st.session_state["df_inv"]
+    lista_prods = obtener_productos_vendibles(df_inv_local)
+
+    # Formulario rápido para agregar al carrito
+    col_add1, col_add2, col_add3 = st.columns([3, 1, 1])
+    prod_sel = col_add1.selectbox("Producto", lista_prods, key="modal_sel_prod")
+    
+    if prod_sel:
+        stk_max = int(df_inv_local[df_inv_local["CATEGORIA"] == prod_sel].iloc[0]["STOCK"])
+        prc_unit = float(df_inv_local[df_inv_local["CATEGORIA"] == prod_sel].iloc[0]["PRECIO"])
+    else:
+        stk_max = 1
+        prc_unit = 0.0
+
+    cant_sel = col_add2.number_input("Cant.", min_value=1, max_value=max(1, stk_max), value=1, key="modal_cant_prod")
+    
+    st.write("")
+    if col_add3.button("➕ AGREGAR", use_container_width=True):
+        if stk_max <= 0:
+            st.error("Producto agotado.")
+        else:
+            # Revisar si ya está en el carrito
+            encontrado = False
+            for item in st.session_state["carrito"]:
+                if item["producto"] == prod_sel:
+                    if item["cantidad"] + cant_sel <= stk_max:
+                        item["cantidad"] += cant_sel
+                        encontrado = True
+                    else:
+                        st.error(f"No hay suficiente stock. Máximo disponible: {stk_max}")
+                        encontrado = True
+                    break
+            if not encontrado:
+                st.session_state["carrito"].append({
+                    "producto": prod_sel,
+                    "cantidad": cant_sel,
+                    "precio": prc_unit
+                })
+            st.rerun()
+
+    st.markdown("---")
+    st.subheader("📋 Resumen del Carrito")
+
+    if not st.session_state["carrito"]:
+        st.info("El carrito está vacío. Agrega al menos un producto.")
+    else:
+        subtotal = 0.0
+        for i, item in enumerate(st.session_state["carrito"]):
+            tot_item = item["cantidad"] * item["precio"]
+            subtotal += tot_item
+            c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
+            c1.write(f"**{item['producto']}**")
+            c2.write(f"x{item['cantidad']}")
+            c3.write(f"${tot_item:,.2f}")
+            if c4.button("❌", key=f"del_cart_{i}"):
+                st.session_state["carrito"].pop(i)
+                st.rerun()
+
+        st.markdown("---")
+        descuento = st.number_input("🏷️ Descuento General ($)", min_value=0.0, max_value=10.0, value=0.0)
+        total_final = max(0.0, subtotal - descuento)
+        st.markdown(f'<div class="total-card">TOTAL A PAGAR: ${total_final:,.2f}</div>', unsafe_allow_html=True)
+
+        with st.form("form_finalizar_venta"):
+            m_pago = st.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
+            c_nom = st.text_input("👤 Nombre Cliente", value="Cliente General")
+            c_ced = st.text_input("🆔 Cédula/RUC", value="S/N")
+            c_tel = st.text_input("📞 Teléfono", value="")
+            c_dir = st.text_input("📍 Dirección Entrega", value="")
+
+            destino_recibo = st.selectbox(
+                "📲 Enviar Recibo por WhatsApp",
+                ["Vendedor 1 (0990847819)", "Vendedor 2 (0983576800)"]
+            )
+
+            if st.form_submit_button("💰 FINALIZAR VENTA Y RECIBO", use_container_width=True):
+                # Descontar stock
+                for item in st.session_state["carrito"]:
+                    df_inv_local.loc[df_inv_local["CATEGORIA"] == item["producto"], "STOCK"] -= item["cantidad"]
+                
+                guardar_csv(df_inv_local, FILE_INV)
+                st.session_state["df_inv"] = df_inv_local
+
+                # Construir detalle
+                resumen_prods = " + ".join([f"{it['producto']} (x{it['cantidad']})" for it in st.session_state["carrito"]])
+                cant_total = sum([it['cantidad'] for it in st.session_state["carrito"]])
+
+                nueva_v_dict = {
+                    "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "CATEGORIA": resumen_prods,
+                    "CANTIDAD": cant_total,
+                    "PRECIO_UNITARIO": total_final,
+                    "TOTAL": total_final,
+                    "ABONADO": total_final,
+                    "SALDO_PENDIENTE": 0.0,
+                    "METODO_PAGO": m_pago,
+                    "CLIENTE": c_nom,
+                    "CEDULA": c_ced,
+                    "TELEFONO": c_tel,
+                    "CORREO": "",
+                    "DIRECCION": c_dir,
+                    "ESTADO": "Pagado y Entregado",
+                    "FOTO": "Sin foto"
+                }
+
+                df_v_act = pd.concat([st.session_state["df_ventas"], pd.DataFrame([nueva_v_dict])], ignore_index=True)
+                guardar_csv(df_v_act, FILE_VENTAS)
+                st.session_state["df_ventas"] = df_v_act
+                st.session_state["ultima_venta"] = nueva_v_dict
+                st.session_state["carrito"] = []
+
+                num_dest = NUMEROS_WHATSAPP[destino_recibo]
+                st.session_state["redirect_url"] = generar_link_whatsapp(num_dest, nueva_v_dict)
+                st.rerun()
+
+# ============================================================
 #                 NAVEGACIÓN PRINCIPAL
 # ============================================================
 
@@ -297,18 +419,14 @@ tab_venta, tab_apartado, tab_inventario, tab_historial = st.tabs([
 ])
 
 # ------------------------------------------------------------
-# TAB 1: VENDER (FORMULARIO DESPLEGABLE INMEDIATO)
+# TAB 1: VENDER
 # ------------------------------------------------------------
 with tab_venta:
     if df_inv.empty:
         st.info("📦 No hay productos registrados en el inventario.")
     else:
-        st.markdown("### 🛍️ Catálogo de Productos y Selección Directa")
+        st.markdown("### 🛍️ Catálogo de Productos")
         
-        lista_productos = obtener_productos_vendibles(df_inv)
-        OPCION_COMBO = "🎁 Combo (Cama + Colchón)"
-        opciones_venta = [OPCION_COMBO] + lista_productos
-
         cols_grid = st.columns(3)
         vendibles = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))].copy()
 
@@ -330,116 +448,31 @@ with tab_venta:
                 """, unsafe_allow_html=True)
                 
                 if stk > 0:
-                    if st.button(f"⚡ Cargar para Venta", key=f"btn_quick_add_{i}", use_container_width=True):
-                        st.session_state["sel_venta_prod"] = row['CATEGORIA']
-                        st.rerun()
+                    if st.button(f"🛒 Agregar al Carrito", key=f"btn_add_cart_{i}", use_container_width=True):
+                        # Agregar de una vez al carrito
+                        encontrado = False
+                        for item in st.session_state["carrito"]:
+                            if item["producto"] == row['CATEGORIA']:
+                                if item["cantidad"] + 1 <= stk:
+                                    item["cantidad"] += 1
+                                    encontrado = True
+                                break
+                        if not encontrado:
+                            st.session_state["carrito"].append({
+                                "producto": row['CATEGORIA'],
+                                "cantidad": 1,
+                                "precio": float(row['PRECIO'])
+                            })
+                        abrir_modal_venta()
                 else:
                     st.button("❌ Sin Stock", key=f"btn_select_dis_{i}", disabled=True, use_container_width=True)
 
         st.markdown("---")
         
-        # BUSCADOR AUTOCOMPLETABLE O RECUADRO DE SELECCIÓN
-        st.markdown("### 🔍 Búsqueda Manual / Producto Seleccionado")
-        
-        idx_default = 0
-        if st.session_state["sel_venta_prod"] in opciones_venta:
-            idx_default = opciones_venta.index(st.session_state["sel_venta_prod"])
-
-        producto_elegido = st.selectbox(
-            "Escribe o cambia el producto aquí:",
-            opciones_venta,
-            index=idx_default,
-            key="sel_venta_prod_main",
-            help="Escribe para buscar o selecciona directamente"
-        )
-        st.session_state["sel_venta_prod"] = producto_elegido
-
-        # RECUADRO Y FORMULARIO DE COBRO INMEDIATO
-        if producto_elegido:
-            st.markdown('<div class="form-container">', unsafe_allow_html=True)
-            st.markdown(f"#### 💳 Procesar Venta: **{producto_elegido}**")
-
-            es_combo = (producto_elegido == OPCION_COMBO)
-
-            if es_combo:
-                camas = [p for p in lista_productos if "cama" in p.lower()]
-                colchones = [p for p in lista_productos if "colchon" in p.lower() or "colchón" in p.lower()]
-
-                if not camas or not colchones:
-                    st.error("⚠️ Para vender un combo, debe existir al menos 1 Cama y 1 Colchón disponibles.")
-                else:
-                    c1, c2 = st.columns(2)
-                    cama_combo = c1.selectbox("🛏️ Seleccionar Cama", camas)
-                    colchon_combo = c2.selectbox("💤 Seleccionar Colchón", colchones)
-
-                    stock_cama = int(df_inv[df_inv["CATEGORIA"] == cama_combo].iloc[0]["STOCK"])
-                    stock_colchon = int(df_inv[df_inv["CATEGORIA"] == colchon_combo].iloc[0]["STOCK"])
-                    stock_disp = min(stock_cama, stock_colchon)
-
-                    sugerido = float(df_inv[df_inv["CATEGORIA"] == cama_combo].iloc[0]["PRECIO"]) + float(df_inv[df_inv["CATEGORIA"] == colchon_combo].iloc[0]["PRECIO"])
-                    precio_unitario = st.number_input("🏷️ Precio Final Combo ($)", min_value=0.0, value=sugerido, step=5.0)
-                    nombre_venta = f"COMBO: {cama_combo} + {colchon_combo}"
-                    st.info(f"💡 Combos armables en stock: **{stock_disp}** unidades")
-            else:
-                fila = df_inv[df_inv["CATEGORIA"] == producto_elegido].iloc[0]
-                stock_disp = int(fila["STOCK"])
-                precio_unitario = float(fila["PRECIO"])
-                nombre_venta = producto_elegido
-
-            if not es_combo or (camas and colchones):
-                if stock_disp <= 0:
-                    st.error(f"🔴 **{nombre_venta}** se encuentra totalmente agotado.")
-                else:
-                    with st.form("form_venta_directa"):
-                        a1, a2, a3 = st.columns(3)
-                        cantidad = 1 if es_combo else a1.number_input("🔢 Cantidad", min_value=1, max_value=stock_disp, value=1)
-                        metodo_pago = a2.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
-                        descuento = a3.number_input("🏷️ Descuento ($ Máx $10)", min_value=0.0, max_value=10.0, value=0.0, step=1.0)
-
-                        c_nom = st.text_input("👤 Nombre Cliente", value="Cliente General")
-                        c_ced = st.text_input("🆔 Cédula/RUC", value="S/N")
-                        c_tel = st.text_input("📞 Teléfono", value="")
-                        c_dir = st.text_input("📍 Dirección Entrega", value="")
-
-                        destino_recibo = st.selectbox(
-                            "📲 Enviar Recibo por WhatsApp (Obligatorio)",
-                            ["Vendedor 1 (0990847819)", "Vendedor 2 (0983576800)"]
-                        )
-
-                        total_final = max(0.0, (cantidad * precio_unitario) - descuento)
-                        st.markdown(f'<div class="total-card">TOTAL A COBRAR: ${total_final:,.2f}</div>', unsafe_allow_html=True)
-
-                        if st.form_submit_button("💰 COMPLETAR VENTA Y ENVIAR RECIBO", use_container_width=True):
-                            if es_combo:
-                                df_inv.loc[df_inv["CATEGORIA"] == cama_combo, "STOCK"] -= 1
-                                df_inv.loc[df_inv["CATEGORIA"] == colchon_combo, "STOCK"] -= 1
-                            else:
-                                df_inv.loc[df_inv["CATEGORIA"] == producto_elegido, "STOCK"] -= cantidad
-
-                            guardar_csv(df_inv, FILE_INV)
-                            st.session_state["df_inv"] = df_inv
-
-                            nueva_v_dict = {
-                                "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                                "CATEGORIA": nombre_venta, "CANTIDAD": cantidad,
-                                "PRECIO_UNITARIO": precio_unitario, "TOTAL": total_final,
-                                "ABONADO": total_final, "SALDO_PENDIENTE": 0.0,
-                                "METODO_PAGO": metodo_pago, "CLIENTE": c_nom,
-                                "CEDULA": c_ced, "TELEFONO": c_tel, "CORREO": "",
-                                "DIRECCION": c_dir, "ESTADO": "Pagado y Entregado", "FOTO": "Sin foto"
-                            }
-                            df_v_actualizado = pd.concat([st.session_state["df_ventas"], pd.DataFrame([nueva_v_dict])], ignore_index=True)
-                            guardar_csv(df_v_actualizado, FILE_VENTAS)
-                            st.session_state["df_ventas"] = df_v_actualizado
-                            st.session_state["ultima_venta"] = nueva_v_dict
-
-                            num_dest = NUMEROS_WHATSAPP[destino_recibo]
-                            link_wa = generar_link_whatsapp(num_dest, nueva_v_dict)
-                            
-                            st.session_state["redirect_url"] = link_wa
-                            st.rerun()
-
-            st.markdown('</div>', unsafe_allow_html=True)
+        # BOTÓN PRINCIPAL VER CARRITO / COMPRAR
+        cant_items_cart = sum([item['cantidad'] for item in st.session_state["carrito"]])
+        if st.button(f"🛒 VER CARRITO DE COMPRAS ({cant_items_cart} productos)", use_container_width=True, type="primary"):
+            abrir_modal_venta()
 
         if "redirect_url" in st.session_state and st.session_state["redirect_url"]:
             link_red = st.session_state["redirect_url"]
