@@ -18,16 +18,14 @@ NUMEROS_WHATSAPP = {
     "Vendedor 2 (0983576800)": "593983576800"
 }
 
-# --- ESTILOS CSS AVANZADOS (CATÁLOGO PRO) ---
+# --- ESTILOS CSS AVANZADOS ---
 st.markdown("""
 <style>
-    /* Fondo general estilo Dashboard moderno */
     .stApp { 
         background-color: #f8fafc; 
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* Rediseño de la Card del Catálogo */
     .catalog-card {
         background: #ffffff;
         border-radius: 20px;
@@ -47,7 +45,6 @@ st.markdown("""
         border-color: #cbd5e1;
     }
 
-    /* Encabezado visual de la Card (Contenedor de Imagen/Icono) */
     .card-img-container {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         height: 140px;
@@ -58,7 +55,6 @@ st.markdown("""
         position: relative;
     }
 
-    /* Badges Flotantes sobre la Imagen */
     .badge-float {
         position: absolute;
         top: 12px;
@@ -76,7 +72,6 @@ st.markdown("""
     .badge-low { background: rgba(254, 243, 199, 0.95); color: #b45309; border: 1px solid #fde68a; }
     .badge-out { background: rgba(254, 226, 226, 0.95); color: #b91c1c; border: 1px solid #fecaca; }
 
-    /* Cuerpo de la Card */
     .card-body {
         padding: 18px;
         flex-grow: 1;
@@ -120,7 +115,6 @@ st.markdown("""
         letter-spacing: -0.5px;
     }
 
-    /* Banner Promocional */
     .promo-banner {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%);
         color: #ffffff;
@@ -330,7 +324,7 @@ tab_venta, tab_apartados, tab_inv, tab_historial = st.tabs([
 
 
 # ============================================================
-#            TAB 1: CATÁLOGO Y VENTA (REDISAEÑADO)
+#            TAB 1: CATÁLOGO Y VENTA
 # ============================================================
 with tab_venta:
     col_hdr1, col_hdr2, col_hdr3 = st.columns([2, 1, 1])
@@ -352,7 +346,6 @@ with tab_venta:
     else:
         subproductos = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]
 
-        # 1. COMBO PROMOCIONAL REDISEÑADO
         camas_disponibles = subproductos[subproductos["CATEGORIA"].str.contains("CAMA", case=False, na=False) & (subproductos["STOCK"] > 0)]["CATEGORIA"].tolist()
         colchones_disponibles = subproductos[subproductos["CATEGORIA"].str.contains("COLCHON|COLCHÓN", case=False, na=False) & (subproductos["STOCK"] > 0)]["CATEGORIA"].tolist()
 
@@ -376,14 +369,12 @@ with tab_venta:
 
         st.divider()
 
-        # 2. BÚSQUEDA Y FILTRADO
         search_query = st.text_input("🔍 Buscar productos por nombre...", placeholder="Ej: Cama tapizada, Colchón...")
         if search_query:
             subproductos = subproductos[subproductos["CATEGORIA"].str.contains(search_query, case=False, na=False)]
 
         st.write("")
 
-        # 3. GRILLA DE CATÁLOGO MEJORADA (3 Columnas para mayor presencia visual)
         cols_per_row = 3
         cols = st.columns(cols_per_row)
 
@@ -441,50 +432,66 @@ with tab_venta:
 
 
 # ============================================================
-#            TAB 2: APARTADOS
+#            TAB 2: APARTADOS (PÚBLICO - SIN CLAVE)
 # ============================================================
 with tab_apartados:
-    st.session_state["active_tab"] = "apartados"
-    if verificar_admin():
-        st.markdown("### 📑 Gestión de Apartados y Reservas")
-        with st.expander("➕ Registrar Nuevo Apartado"):
-            with st.form("form_nuevo_apartado"):
-                col_ap1, col_ap2 = st.columns(2)
-                c_cliente = col_ap1.text_input("👤 Nombre Cliente")
-                c_tel = col_ap2.text_input("📞 Teléfono WhatsApp")
-                prods_vendibles = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]["CATEGORIA"].tolist()
-                c_prod = col_ap1.selectbox("🛏️ Producto a Reservar", prods_vendibles)
-                c_tot = col_ap2.number_input("💵 Precio Total ($)", min_value=0.0)
-                c_abono = col_ap1.number_input("💰 Abono Inicial ($)", min_value=0.0)
-                c_fecha_ent = col_ap2.date_input("📅 Fecha Entrega")
+    st.markdown("### 📑 Gestión de Apartados y Reservas")
+    
+    with st.expander("➕ Registrar Nuevo Apartado", expanded=False):
+        with st.form("form_nuevo_apartado"):
+            col_ap1, col_ap2 = st.columns(2)
+            c_cliente = col_ap1.text_input("👤 Nombre Cliente")
+            c_tel = col_ap2.text_input("📞 Teléfono WhatsApp")
+            prods_vendibles = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]["CATEGORIA"].tolist()
+            c_prod = col_ap1.selectbox("🛏️ Producto a Reservar", prods_vendibles)
+            c_tot = col_ap2.number_input("💵 Precio Total ($)", min_value=0.0)
+            c_abono = col_ap1.number_input("💰 Abono Inicial ($)", min_value=0.0)
+            c_fecha_ent = col_ap2.date_input("📅 Fecha Entrega")
 
-                if st.form_submit_button("📌 Registrar", use_container_width=True):
-                    if c_cliente and c_prod and c_tot > 0:
-                        nuevo_id = len(st.session_state["df_apartados"]) + 1
-                        saldo_pend = max(0.0, c_tot - c_abono)
-                        nuevo_apt = {
-                            "ID": f"APT-{nuevo_id:03d}",
-                            "FECHA": datetime.now().strftime("%Y-%m-%d"),
-                            "CLIENTE": c_cliente,
-                            "TELEFONO": c_tel,
-                            "CATEGORIA": c_prod,
-                            "TOTAL": c_tot,
-                            "ABONADO": c_abono,
-                            "SALDO": saldo_pend,
-                            "ESTADO": "Pendiente" if saldo_pend > 0 else "Liquidado",
-                            "FECHA_ENTREGA": c_fecha_ent.strftime("%Y-%m-%d")
-                        }
-                        df_apt_act = pd.concat([st.session_state["df_apartados"], pd.DataFrame([nuevo_apt])], ignore_index=True)
-                        guardar_csv(df_apt_act, FILE_APARTADOS)
-                        st.session_state["df_apartados"] = df_apt_act
-                        st.success("✅ Guardado correctamente")
-                        st.rerun()
+            if st.form_submit_button("📌 Registrar Apartado", use_container_width=True, type="primary"):
+                if c_cliente and c_prod and c_tot > 0:
+                    nuevo_id = len(st.session_state["df_apartados"]) + 1
+                    saldo_pend = max(0.0, c_tot - c_abono)
+                    nuevo_apt = {
+                        "ID": f"APT-{nuevo_id:03d}",
+                        "FECHA": datetime.now().strftime("%Y-%m-%d"),
+                        "CLIENTE": c_cliente,
+                        "TELEFONO": c_tel,
+                        "CATEGORIA": c_prod,
+                        "TOTAL": c_tot,
+                        "ABONADO": c_abono,
+                        "SALDO": saldo_pend,
+                        "ESTADO": "Pendiente" if saldo_pend > 0 else "Liquidado",
+                        "FECHA_ENTREGA": c_fecha_ent.strftime("%Y-%m-%d")
+                    }
+                    df_apt_act = pd.concat([st.session_state["df_apartados"], pd.DataFrame([nuevo_apt])], ignore_index=True)
+                    guardar_csv(df_apt_act, FILE_APARTADOS)
+                    st.session_state["df_apartados"] = df_apt_act
+                    st.success("✅ Apartado guardado con éxito")
+                    st.rerun()
+                else:
+                    st.error("❌ Por favor completa el cliente, producto y un precio válido.")
 
+    st.write("")
+    
+    if st.session_state["df_apartados"].empty:
+        st.info("📑 No hay reservas ni apartados registrados.")
+    else:
         st.dataframe(st.session_state["df_apartados"], use_container_width=True)
+        
+        with st.expander("🗑️ Eliminar o Cancelar un Apartado"):
+            list_ids = st.session_state["df_apartados"]["ID"].tolist()
+            apt_eliminar = st.selectbox("Seleccione el ID a eliminar:", list_ids)
+            if st.button("❌ Eliminar Apartado Seleccionado", type="secondary"):
+                df_apt_act = st.session_state["df_apartados"][st.session_state["df_apartados"]["ID"] != apt_eliminar]
+                guardar_csv(df_apt_act, FILE_APARTADOS)
+                st.session_state["df_apartados"] = df_apt_act
+                st.success(f"Apartado {apt_eliminar} eliminado.")
+                st.rerun()
 
 
 # ============================================================
-#           TAB 3: INVENTARIO
+#           TAB 3: INVENTARIO (PROTEGIDO)
 # ============================================================
 with tab_inv:
     st.session_state["active_tab"] = "inventario"
@@ -527,15 +534,39 @@ with tab_inv:
 
 
 # ============================================================
-#           TAB 4: HISTORIAL
+#    TAB 4: HISTORIAL (PÚBLICO CON CLAVE SOLO PARA ELIMINAR)
 # ============================================================
 with tab_historial:
-    st.session_state["active_tab"] = "historial"
-    if verificar_admin():
-        st.markdown("### 📊 Historial de Ventas")
-        if st.session_state["df_ventas"].empty:
-            st.info("Sin ventas registradas.")
-        else:
-            st.dataframe(st.session_state["df_ventas"], use_container_width=True)
-            tot_recaudado = st.session_state["df_ventas"]["TOTAL"].sum()
-            st.metric(label="💰 Total Recaudado", value=f"${tot_recaudado:,.2f}")
+    st.markdown("### 📊 Historial de Ventas")
+    
+    if st.session_state["df_ventas"].empty:
+        st.info("Sin ventas registradas.")
+    else:
+        st.dataframe(st.session_state["df_ventas"], use_container_width=True)
+        tot_recaudado = st.session_state["df_ventas"]["TOTAL"].sum()
+        st.metric(label="💰 Total Recaudado", value=f"${tot_recaudado:,.2f}")
+        
+        st.divider()
+        
+        # SECCIÓN DE ELIMINACIÓN PROTEGIDA POR CLAVE
+        with st.expander("🗑️ Eliminar Registro de Venta (Requiere Clave)"):
+            st.write("Selecciona el índice o registro que deseas eliminar:")
+            
+            # Lista de ventas disponibles por su índice y fecha/cliente
+            opciones_ventas = [f"Fila {i}: {row['FECHA']} - {row['CLIENTE']} (${row['TOTAL']:.2f})" 
+                               for i, row in st.session_state["df_ventas"].iterrows()]
+            
+            idx_seleccionado = st.selectbox("Seleccione la venta a eliminar:", range(len(opciones_ventas)), 
+                                            format_func=lambda x: opciones_ventas[x])
+            
+            pass_delete = st.text_input("Ingrese Clave de Administrador para confirmar eliminación:", type="password", key="pass_del_hist")
+            
+            if st.button("❌ Confirmar y Eliminar Venta", type="secondary"):
+                if pass_delete == ADMIN_PASSWORD:
+                    df_v_act = st.session_state["df_ventas"].drop(idx_seleccionado).reset_index(drop=True)
+                    guardar_csv(df_v_act, FILE_VENTAS)
+                    st.session_state["df_ventas"] = df_v_act
+                    st.success("✅ Venta eliminada correctamente.")
+                    st.rerun()
+                else:
+                    st.error("❌ Clave incorrecta. No se pudo eliminar el registro.")
