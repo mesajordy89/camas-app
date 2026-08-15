@@ -242,14 +242,26 @@ def abrir_modal_carrito():
     total_final = max(0.0, subtotal - descuento)
     
     st.markdown(f"### **Total Final: ${total_final:,.2f}**")
-    
+    st.divider()
+
+    # OPCIÓN DE VENTA SIN DATOS / CONSUMIDOR FINAL
+    sin_datos = st.checkbox("⚡ Venta sin datos (Consumidor Final / Sin Factura)", value=False)
+
     with st.form("form_modal_checkout"):
-        st.subheader("Datos del Cliente")
         m_pago = st.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
-        c_nom = st.text_input("👤 Nombre Cliente", value="Cliente General")
-        c_ced = st.text_input("🆔 Cédula/RUC", value="S/N")
-        c_tel = st.text_input("📞 Teléfono", value="")
-        c_dir = st.text_input("📍 Dirección Entrega", value="")
+        
+        st.subheader("Datos del Cliente")
+        if sin_datos:
+            c_nom = st.text_input("👤 Nombre Cliente", value="CONSUMIDOR FINAL", disabled=True)
+            c_ced = st.text_input("🆔 Cédula/RUC", value="9999999999999", disabled=True)
+            c_tel = st.text_input("📞 Teléfono", value="S/N", disabled=True)
+            c_dir = st.text_input("📍 Dirección Entrega", value="S/N", disabled=True)
+        else:
+            c_nom = st.text_input("👤 Nombre Cliente", value="")
+            c_ced = st.text_input("🆔 Cédula/RUC", value="")
+            c_tel = st.text_input("📞 Teléfono", value="")
+            c_dir = st.text_input("📍 Dirección Entrega", value="")
+            
         destino_recibo = st.selectbox("📲 Enviar Recibo por WhatsApp", list(NUMEROS_WHATSAPP.keys()))
 
         if st.form_submit_button("💰 FINALIZAR COMPRA Y EMITIR RECIBO", use_container_width=True, type="primary"):
@@ -272,11 +284,11 @@ def abrir_modal_carrito():
                 "ABONADO": total_final,
                 "SALDO_PENDIENTE": 0.0,
                 "METODO_PAGO": m_pago,
-                "CLIENTE": c_nom,
-                "CEDULA": c_ced,
-                "TELEFONO": c_tel,
+                "CLIENTE": c_nom if c_nom else "CONSUMIDOR FINAL",
+                "CEDULA": c_ced if c_ced else "9999999999999",
+                "TELEFONO": c_tel if c_tel else "S/N",
                 "CORREO": "",
-                "DIRECCION": c_dir,
+                "DIRECCION": c_dir if c_dir else "S/N",
                 "ESTADO": "Pagado y Entregado",
                 "FOTO": "Sin foto"
             }
@@ -303,7 +315,7 @@ tab_venta, tab_apartados, tab_inv, tab_historial = st.tabs([
 
 
 # ============================================================
-#            TAB 1: CATÁLOGO Y VENTA (RESEÑADO Y MEJORADO)
+#            TAB 1: CATÁLOGO Y VENTA
 # ============================================================
 with tab_venta:
     col_hdr1, col_hdr2, col_hdr3 = st.columns([2, 1, 1])
