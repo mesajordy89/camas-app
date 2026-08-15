@@ -21,10 +21,9 @@ NUMEROS_WHATSAPP = {
     "Vendedor 2 (0983576800)": "593983576800"
 }
 
-# --- ESTILOS CSS MEJORADOS ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
-    /* Fondo principal y tipografía general */
     .stApp { background-color: #f1f5f9; }
     
     /* CONTENEDOR DE PROMO COMBO REDISEÑADO */
@@ -182,13 +181,16 @@ def agregar_combo_al_carrito(sel_cama, sel_colchon, precio_combo):
     return True
 
 def verificar_admin():
+    """Función para validar el acceso de administrador en las pestañas restringidas"""
     if "admin_autenticado" not in st.session_state:
         st.session_state["admin_autenticado"] = False
 
+    active_tab = st.session_state.get("active_tab", "default")
+
     if not st.session_state["admin_autenticado"]:
         st.warning("🔒 Esta sección requiere acceso de Administrador.")
-        clave = st.text_input("Ingrese la clave de Administrador:", type="password", key=f"pass_input_{st.session_state.get('active_tab', 'default')}")
-        if st.button("🔓 Iniciar Sesión Admin", key=f"btn_login_{st.session_state.get('active_tab', 'default')}"):
+        clave = st.text_input("Ingrese la clave de Administrador:", type="password", key=f"pass_input_{active_tab}")
+        if st.button("🔓 Iniciar Sesión Admin", key=f"btn_login_{active_tab}"):
             if clave == ADMIN_PASSWORD:
                 st.session_state["admin_autenticado"] = True
                 st.success("Acceso concedido")
@@ -199,7 +201,7 @@ def verificar_admin():
     else:
         col_m1, col_m2 = st.columns([6, 1])
         col_m1.info("🔑 Sesión de Administrador activa")
-        if col_m2.button("🚪 Cerrar Sesión"):
+        if col_m2.button("🚪 Cerrar Sesión", key=f"btn_logout_{active_tab}"):
             st.session_state["admin_autenticado"] = False
             st.rerun()
         return True
@@ -242,13 +244,13 @@ tab_venta, tab_apartados, tab_inv, tab_historial = st.tabs([
 
 
 # ============================================================
-#                 TAB 1: VENDER
+#                 TAB 1: VENDER (LIBRE ACCESO)
 # ============================================================
 with tab_venta:
     if df_inv.empty:
         st.info("📦 No hay productos registrados en el inventario.")
     else:
-        # 1. Promoción: Armar Combo (SECCIÓN REDISEÑADA)
+        # 1. Promoción: Armar Combo
         camas_disponibles = df_inv[
             df_inv["CATEGORIA"].str.contains("CAMA", case=False, na=False) & (df_inv["STOCK"] > 0)
         ]["CATEGORIA"].tolist()
@@ -385,7 +387,7 @@ with tab_venta:
 
         st.markdown("---")
 
-        # 4. CATÁLOGO REDISEÑADO CON MEJORAS VISUALES
+        # 4. CATÁLOGO REDISEÑADO
         st.markdown("### 🛍️ Catálogo de Productos")
         
         cols_grid = st.columns(3)
