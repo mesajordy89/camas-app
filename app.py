@@ -5,7 +5,7 @@ import textwrap
 import pandas as pd
 import streamlit as st
 
-# Intentar cargar reportlab para los comprobantes PDF
+# Intentar cargar reportlab para los comprobantes PDF de manera segura
 try:
     from reportlab.lib.pagesizes import letter
     from reportlab.pdfgen import canvas
@@ -57,7 +57,6 @@ def normalizar_inventario(df_input):
     
     df = df_input.copy()
     
-    # Inyección garantizada de columnas faltantes
     if "CATEGORIA" not in df.columns:
         df["CATEGORIA"] = ""
     if "STOCK" not in df.columns:
@@ -205,7 +204,6 @@ def existe_producto(df, nombre):
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
-# Forzar recarga completa y sobreescritura de datos corregidos
 st.session_state["df_inv"] = cargar_inventario()
 st.session_state["df_ventas"] = cargar_ventas()
 
@@ -469,14 +467,12 @@ with tab_apartado:
 with tab_inventario:
     st.markdown("### 🛠️ Gestión y Reabastecimiento de Inventario")
     
-    # 1. Alertas protegidas
     if not df_inv.empty and "STOCK_MINIMO" in df_inv.columns and "STOCK" in df_inv.columns:
         agotados = df_inv[df_inv["STOCK"] <= df_inv["STOCK_MINIMO"]]
         if not agotados.empty:
             st.warning("⚠️ **Atención: Productos bajo el Stock Mínimo Recomendado**")
             st.dataframe(agotados[["CATEGORIA", "STOCK", "STOCK_MINIMO"]], hide_index=True, use_container_width=True)
 
-    # 2. Formulario con clave admin
     if st.text_input("🔐 Clave Administrador", type="password", key="pwd_inv") == CLAVE_ADMIN:
         principales = [n for n in df_inv["CATEGORIA"].tolist() if " - " not in str(n)]
         opciones = ["✨ Crear Repositorio Principal", "📦 Crear Producto Simple"] + principales
@@ -525,22 +521,22 @@ with tab_inventario:
         st.dataframe(df_inv, use_container_width=True)
 
 # ------------------------------------------------------------
-# TAB 4: HISTORIAL Y REPORTES
+# TAB 4: HISTORIAL Y REPORTES (EXPORTACIÓN SEGURA A EXCEL/CSV)
 # ------------------------------------------------------------
 with tab_historial:
     st.markdown("### 📜 Historial de Ventas y Filtros")
     if not df_ventas.empty:
-        buffer_excel = io.BytesIO()
-        with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-            df_ventas.to_excel(writer, index=False, sheet_name='Ventas')
-        buffer_excel.seek(0)
+        # Generar CSV con codificación compatible con Excel (utf-8-sig)
+        csv_data = df_ventas.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
         
         st.download_button(
-            label="📊 Exportar Historial a Excel",
-            data=buffer_excel,
-            file_name=f"ventas_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            label="📊 Descargar Historial (Abrir en Excel / CSV)",
+            data=csv_data,
+            file_name=f"ventas_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True
         )
+
         st.dataframe(df_ventas, use_container_width=True, hide_index=True)
     else:
         st.info("Sin registros de ventas.")
