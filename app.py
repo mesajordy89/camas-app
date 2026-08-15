@@ -13,7 +13,7 @@ FILE_INV = "inventario_mesitas.csv"
 FILE_VENTAS = "ventas_mesitas.csv"
 FILE_APARTADOS = "apartados_mesitas.csv"
 
-# Números de los dos dueños (Ecuador +593)
+# Teléfonos de los dos dueños (+593 Ecuador)
 NUMEROS_DUENOS = {
     "Dueño 1": "593990847819",
     "Dueño 2": "593983576800"
@@ -81,7 +81,7 @@ def producto_es_vendible(df_inv, categoria):
     return not (es_titulo or cama_base or colchon_base)
 
 
-# --- INICIALIZACIÓN ---
+# --- INICIALIZACIÓN DE DATOS ---
 COLS_INV = ["CATEGORIA", "STOCK", "STOCK_MINIMO", "PRECIO", "COSTO", "MEDIDA", "CAMA_BASE", "COLCHON_BASE", "ES_TITULO", "PADRE"]
 COLS_VENTAS = ["FECHA", "CATEGORIA", "CANTIDAD", "PRECIO_UNITARIO", "TOTAL", "ABONADO", "SALDO_PENDIENTE", "METODO_PAGO", "CLIENTE", "CEDULA", "TELEFONO", "CORREO", "DIRECCION", "ESTADO", "FOTO"]
 COLS_APARTADOS = ["ID", "FECHA", "CLIENTE", "TELEFONO", "CATEGORIA", "TOTAL", "ABONADO", "SALDO", "ESTADO", "FECHA_ENTREGA"]
@@ -92,8 +92,6 @@ if "df_apartados" not in st.session_state: st.session_state["df_apartados"] = ca
 if "carrito" not in st.session_state: st.session_state["carrito"] = []
 if "recibos_duenos" not in st.session_state: st.session_state["recibos_duenos"] = None
 if "abrir_dialogo" not in st.session_state: st.session_state["abrir_dialogo"] = False
-if "filtro_categoria" not in st.session_state: st.session_state["filtro_categoria"] = "TODOS"
-if "admin_autenticado" not in st.session_state: st.session_state["admin_autenticado"] = False
 
 df_inv = st.session_state["df_inv"]
 
@@ -177,7 +175,6 @@ def abrir_modal_carrito():
             st.session_state["carrito"] = []
             st.session_state["abrir_dialogo"] = False
             
-            # Generar los dos enlaces para los dueños
             st.session_state["recibos_duenos"] = {
                 nombre: generar_link_whatsapp(num, nueva_v_dict)
                 for nombre, num in NUMEROS_DUENOS.items()
@@ -189,7 +186,7 @@ if st.session_state["abrir_dialogo"]:
     abrir_modal_carrito()
 
 
-# --- BANNER PARA ENVIAR NOTIFICACIÓN A DUEÑOS ---
+# --- BANNER DE NOTIFICACIÓN A DUEÑOS ---
 if st.session_state.get("recibos_duenos"):
     st.success("✅ Venta registrada con éxito.")
     st.markdown("### 📲 Enviar notificación por WhatsApp a los dueños:")
@@ -208,11 +205,12 @@ if st.session_state.get("recibos_duenos"):
     st.divider()
 
 
-# --- INTERFAZ CATÁLOGO DE VENTA ---
+# --- NAVEGACIÓN Y PESTAÑAS ---
 tab_venta, tab_apartados, tab_inv, tab_historial = st.tabs([
     "🛒 CATÁLOGO Y VENTA", "📑 APARTADOS", "📦 INVENTARIO", "📊 HISTORIAL"
 ])
 
+# --- 1. CATÁLOGO Y VENTA ---
 with tab_venta:
     col_hdr1, col_hdr2, col_hdr3 = st.columns([2, 1, 1])
     col_hdr1.title("✨ Punto de Venta")
@@ -230,28 +228,46 @@ with tab_venta:
 
     subproductos = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]
 
-    cols_per_row = 3
-    cols = st.columns(cols_per_row)
+    if subproductos.empty:
+        st.info("No hay productos cargados en el inventario.")
+    else:
+        cols_per_row = 3
+        cols = st.columns(cols_per_row)
 
-    for idx, (_, row) in enumerate(subproductos.iterrows()):
-        stk = int(row['STOCK'])
-        icono = "🛏️" if "CAMA" in row['CATEGORIA'].upper() else "💤"
+        for idx, (_, row) in enumerate(subproductos.iterrows()):
+            stk = int(row['STOCK'])
+            icono = "🛏️" if "CAMA" in str(row['CATEGORIA']).upper() else "💤"
 
-        with cols[idx % cols_per_row]:
-            st.markdown(f"""
-            <div class="catalog-card">
-                <div class="card-img-header">
-                    <span>{icono}</span>
+            with cols[idx % cols_per_row]:
+                st.markdown(f"""
+                <div class="catalog-card">
+                    <div class="card-img-header">
+                        <span>{icono}</span>
+                    </div>
+                    <h4>{row['CATEGORIA']}</h4>
+                    <h3>${row['PRECIO']:,.2f}</h3>
                 </div>
-                <h4>{row['CATEGORIA']}</h4>
-                <h3>${row['PRECIO']:,.2f}</h3>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
 
-            if stk > 0:
-                if st.button(f"🛒 Agregar ({stk} dispon.)", key=f"add_{idx}", use_container_width=True):
-                    st.session_state["carrito"].append({"producto": row['CATEGORIA'], "cantidad": 1, "precio": float(row['PRECIO'])})
-                    st.session_state["abrir_dialogo"] = True
-                    st.rerun()
-            else:
-                st.button("🚫 Sin Stock", key=f"dis_{idx}", disabled=True, use_container_width=True)
+                if stk > 0:
+                    if st.button(f"🛒 Agregar ({stk} dispon.)", key=f"add_{idx}", use_container_width=True):
+                        st.session_state["carrito"].append({"producto": row['CATEGORIA'], "cantidad": 1, "precio": float(row['PRECIO'])})
+                        st.session_state["abrir_dialogo"] = True
+                        st.rerun()
+                else:
+                    st.button("🚫 Sin Stock", key=f"dis_{idx}", disabled=True, use_container_width=True)
+
+# --- 2. APARTADOS ---
+with tab_apartados:
+    st.title("📑 Gestión de Apartados")
+    st.dataframe(st.session_state["df_apartados"], use_container_width=True)
+
+# --- 3. INVENTARIO ---
+with tab_inv:
+    st.title("📦 Control de Inventario")
+    st.dataframe(st.session_state["df_inv"], use_container_width=True)
+
+# --- 4. HISTORIAL ---
+with tab_historial:
+    st.title("📊 Historial de Ventas")
+    st.dataframe(st.session_state["df_ventas"], use_container_width=True)
