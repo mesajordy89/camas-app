@@ -157,8 +157,8 @@ if "df_apartados" not in st.session_state:
     st.session_state["df_apartados"] = cargar_csv(FILE_APARTADOS, COLS_APARTADOS)
 if "carrito" not in st.session_state:
     st.session_state["carrito"] = []
-if "redirect_url" not in st.session_state:
-    st.session_state["redirect_url"] = None
+if "recibos_listos" not in st.session_state:
+    st.session_state["recibos_listos"] = None
 if "abrir_dialogo" not in st.session_state:
     st.session_state["abrir_dialogo"] = False
 if "filtro_categoria" not in st.session_state:
@@ -171,12 +171,6 @@ for col in COLS_INV:
         st.session_state["df_inv"][col] = "NO" if col == "ES_TITULO" else ""
 
 df_inv = st.session_state["df_inv"]
-
-if st.session_state["redirect_url"]:
-    url = st.session_state["redirect_url"]
-    st.session_state["redirect_url"] = None
-    st.markdown(f'<meta http-equiv="refresh" content="0;url={url}">', unsafe_allow_html=True)
-    st.success("Redirigiendo a WhatsApp...")
 
 
 # --- VENTANA MODAL DIRECTA (CHECKOUT) ---
@@ -233,7 +227,7 @@ def abrir_modal_carrito():
             c_tel = st.text_input("📞 Teléfono", value="")
             c_dir = st.text_input("📍 Dirección Entrega", value="")
             
-        destino_recibo = st.selectbox("📲 Enviar Recibo por WhatsApp", list(NUMEROS_WHATSAPP.keys()))
+        destino_recibo = st.selectbox("📲 Enviar Recibo Principal a", ["Ambos Vendedores"] + list(NUMEROS_WHATSAPP.keys()))
 
         if st.form_submit_button("💰 FINALIZAR COMPRA Y EMITIR RECIBO", use_container_width=True, type="primary"):
             df_inv_local = st.session_state["df_inv"]
@@ -270,13 +264,35 @@ def abrir_modal_carrito():
             st.session_state["carrito"] = []
             st.session_state["abrir_dialogo"] = False
             
-            num_dest = NUMEROS_WHATSAPP[destino_recibo]
-            st.session_state["redirect_url"] = generar_link_whatsapp(num_dest, nueva_v_dict)
+            # Generar los enlaces limpios sin redirección bruta
+            st.session_state["recibos_listos"] = {
+                nombre: generar_link_whatsapp(num, nueva_v_dict)
+                for nombre, num in NUMEROS_WHATSAPP.items()
+            }
             st.rerun()
 
 
 if st.session_state["abrir_dialogo"]:
     abrir_modal_carrito()
+
+
+# --- BANNER DE CONFIRMACIÓN DE VENTA Y EMISIÓN ---
+if st.session_state.get("recibos_listos"):
+    st.success("✅ Venta registrada correctamente.")
+    st.markdown("### 📲 Abrir Recibo en WhatsApp:")
+    
+    links = st.session_state["recibos_listos"]
+    col_w1, col_w2, col_w3 = st.columns([2, 2, 1])
+    
+    with col_w1:
+        st.link_button("📲 Enviar a Vendedor 1", list(links.values())[0], type="primary", use_container_width=True)
+    with col_w2:
+        st.link_button("📲 Enviar a Vendedor 2", list(links.values())[0] if len(links)==1 else list(links.values())[1], type="primary", use_container_width=True)
+    with col_w3:
+        if st.button("❌ Cerrar", use_container_width=True):
+            st.session_state["recibos_listos"] = None
+            st.rerun()
+    st.divider()
 
 
 # --- INTERFAZ PRINCIPAL ---
