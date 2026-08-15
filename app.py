@@ -149,32 +149,8 @@ def producto_es_vendible(df_inv, categoria):
     colchon_base = str(row.get("COLCHON_BASE", "NO")).strip().upper() == "SI"
     return not (es_titulo or cama_base or colchon_base)
 
-def verificar_admin():
-    if "admin_autenticado" not in st.session_state:
-        st.session_state["admin_autenticado"] = False
 
-    active_tab = st.session_state.get("active_tab", "default")
-
-    if not st.session_state["admin_autenticado"]:
-        st.warning("🔒 Esta sección requiere acceso de Administrador.")
-        clave = st.text_input("Ingrese la clave de Administrador:", type="password", key=f"pass_input_{active_tab}")
-        if st.button("🔓 Iniciar Sesión Admin", key=f"btn_login_{active_tab}"):
-            if clave == ADMIN_PASSWORD:
-                st.session_state["admin_autenticado"] = True
-                st.rerun()
-            else:
-                st.error("❌ Contraseña incorrecta")
-        return False
-    else:
-        col_m1, col_m2 = st.columns([6, 1])
-        col_m1.info("🔑 Sesión de Administrador activa")
-        if col_m2.button("🚪 Cerrar Sesión", key=f"btn_logout_{active_tab}"):
-            st.session_state["admin_autenticado"] = False
-            st.rerun()
-        return True
-
-
-# --- INICIALIZACIÓN ---
+# --- INICIALIZACIÓN DE DATOS ---
 COLS_INV = ["CATEGORIA", "STOCK", "STOCK_MINIMO", "PRECIO", "COSTO", "MEDIDA", "CAMA_BASE", "COLCHON_BASE", "ES_TITULO", "PADRE"]
 COLS_VENTAS = ["FECHA", "CATEGORIA", "CANTIDAD", "PRECIO_UNITARIO", "TOTAL", "ABONADO", "SALDO_PENDIENTE", "METODO_PAGO", "CLIENTE", "CEDULA", "TELEFONO", "CORREO", "DIRECCION", "ESTADO", "FOTO"]
 COLS_APARTADOS = ["ID", "FECHA", "CLIENTE", "TELEFONO", "CATEGORIA", "TOTAL", "ABONADO", "SALDO", "ESTADO", "FECHA_ENTREGA"]
@@ -193,6 +169,8 @@ if "abrir_dialogo" not in st.session_state:
     st.session_state["abrir_dialogo"] = False
 if "filtro_categoria" not in st.session_state:
     st.session_state["filtro_categoria"] = "TODOS"
+if "admin_autenticado" not in st.session_state:
+    st.session_state["admin_autenticado"] = False
 
 for col in COLS_INV:
     if col not in st.session_state["df_inv"].columns:
@@ -207,7 +185,7 @@ if st.session_state["redirect_url"]:
     st.success("Redirigiendo a WhatsApp...")
 
 
-# --- VENTANA MODAL DIRECTA ---
+# --- VENTANA MODAL DIRECTA (CHECKOUT) ---
 @st.dialog("🛒 Resumen de Compra & Checkout")
 def abrir_modal_carrito():
     if not st.session_state["carrito"]:
@@ -244,7 +222,6 @@ def abrir_modal_carrito():
     st.markdown(f"### **Total Final: ${total_final:,.2f}**")
     st.divider()
 
-    # OPCIÓN DE VENTA SIN DATOS / CONSUMIDOR FINAL
     sin_datos = st.checkbox("⚡ Venta sin datos (Consumidor Final / Sin Factura)", value=False)
 
     with st.form("form_modal_checkout"):
@@ -498,13 +475,35 @@ with tab_apartados:
 
 
 # ============================================================
-#           TAB 3: INVENTARIO (PROTEGIDO)
+#        TAB 3: INVENTARIO (EDICIÓN EXCLUSIVA ADMINISTRADOR)
 # ============================================================
 with tab_inv:
-    st.session_state["active_tab"] = "inventario"
-    if verificar_admin():
-        st.markdown("### 📦 Control de Inventario")
-        with st.expander("➕ Registrar Producto o Categoría"):
+    st.markdown("### 📦 Control de Inventario")
+
+    if st.session_state.get("admin_autenticado", False):
+        st.success("🔓 Modo Administrador activo: Puedes hacer doble clic sobre cualquier celda para modificar stock o precios.")
+        
+        df_editado = st.data_editor(
+            st.session_state["df_inv"],
+            use_container_width=True,
+            num_rows="dynamic",
+            key="editor_inventario"
+        )
+        
+        col_b1, col_b2 = st.columns([1, 4])
+        if col_b1.button("💾 Guardar Cambios", type="primary"):
+            guardar_csv(df_editado, FILE_INV)
+            st.session_state["df_inv"] = df_editado
+            st.success("✅ ¡Inventario actualizado correctamente!")
+            st.rerun()
+
+        if col_b2.button("🚪 Cerrar Sesión Admin"):
+            st.session_state["admin_autenticado"] = False
+            st.rerun()
+
+        st.divider()
+
+        with st.expander("➕ Registrar Nuevo Producto / Categoría"):
             with st.form("form_nuevo_inv"):
                 col_i1, col_i2 = st.columns(2)
                 p_cat = col_i1.text_input("🏷️ Categoría / Producto")
@@ -516,7 +515,7 @@ with tab_inv:
                 p_precio = col_i2.number_input("💵 Precio Venta ($)", min_value=0.0)
                 p_costo = col_i1.number_input("💲 Costo ($)", min_value=0.0)
 
-                if st.form_submit_button("💾 Guardar Producto", use_container_width=True):
+                if st.form_submit_button("💾 Guardar Nuevo Producto", use_container_width=True):
                     if p_cat:
                         nombre_final = f"{padre_sel} - {p_cat}" if padre_sel != "Ninguno" and es_titulo == "NO" else p_cat
                         nuevo_p = {
@@ -537,7 +536,18 @@ with tab_inv:
                         st.success("✅ Producto agregado")
                         st.rerun()
 
+    else:
+        st.info("👁️ Vista de Empleado (Solo lectura). Para editar valores o precios, ingresa la contraseña de administrador.")
         st.dataframe(st.session_state["df_inv"], use_container_width=True)
+        
+        with st.expander("🔑 Acceso Administrador para Editar Inventario"):
+            clave = st.text_input("Ingrese la clave de Administrador:", type="password", key="pass_inv_edit")
+            if st.button("🔓 Habilitar Edición", key="btn_login_inv"):
+                if clave == ADMIN_PASSWORD:
+                    st.session_state["admin_autenticado"] = True
+                    st.rerun()
+                else:
+                    st.error("❌ Contraseña incorrecta")
 
 
 # ============================================================
