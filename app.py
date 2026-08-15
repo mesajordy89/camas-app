@@ -21,23 +21,24 @@ NUMEROS_WHATSAPP = {
     "Vendedor 2 (0983576800)": "593983576800"
 }
 
-# --- ESTILOS CSS ---
+# --- ESTILOS CSS REFINADOS ---
 st.markdown("""
 <style>
-    .stApp { background-color: #f1f5f9; }
-    
-    /* CONTENEDOR DE PROMO COMBO REDISEÑADO */
+    /* Fondo principal y tipografía base */
+    .stApp { background-color: #f8fafc; }
+
+    /* Tarjetas de Promoción / Combo */
     .combo-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-        border: 2px dashed #3b82f6;
-        border-radius: 16px;
+        background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+        border: 2px dashed #2563eb;
+        border-radius: 18px;
         padding: 24px;
         margin-bottom: 25px;
-        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.08);
+        box-shadow: 0 10px 25px rgba(37, 99, 235, 0.08);
     }
-    
+
     .combo-title {
-        font-size: 1.3rem;
+        font-size: 1.35rem;
         font-weight: 800;
         color: #1e3a8a;
         margin-bottom: 15px;
@@ -46,49 +47,49 @@ st.markdown("""
         gap: 8px;
     }
 
-    /* TARJETAS DEL CATÁLOGO V2 PRO */
+    /* Tarjetas de Productos */
     .prod-card-v2 {
         background: #ffffff;
         border-radius: 16px;
         padding: 20px;
         margin-bottom: 20px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
         border: 1px solid #e2e8f0;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        transition: all 0.25s ease-in-out;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        min-height: 180px;
+        min-height: 190px;
     }
-    
+
     .prod-card-v2:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 10px 25px rgba(37, 99, 235, 0.12);
-        border-color: #cbd5e1;
+        transform: translateY(-5px);
+        box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12);
+        border-color: #93c5fd;
     }
-    
-    .prod-title { 
-        font-weight: 700; 
-        font-size: 1.15rem; 
-        color: #0f172a; 
+
+    .prod-title {
+        font-weight: 700;
+        font-size: 1.15rem;
+        color: #0f172a;
         margin-top: 10px;
         margin-bottom: 5px;
         line-height: 1.3;
     }
-    
-    .prod-price { 
-        font-weight: 800; 
-        font-size: 1.4rem; 
-        color: #2563eb; 
+
+    .prod-price {
+        font-weight: 800;
+        font-size: 1.45rem;
+        color: #2563eb;
         letter-spacing: -0.5px;
     }
-    
-    /* ETIQUETAS DE STOCK MODERNAS */
+
+    /* Badges de Estado / Stock */
     .card-badge {
         display: inline-block;
-        padding: 4px 10px;
+        padding: 5px 12px;
         border-radius: 20px;
-        font-size: 0.72rem;
+        font-size: 0.75rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -97,25 +98,25 @@ st.markdown("""
     .badge-low { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
     .badge-out { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
-    /* CONTENEDOR DE CARRITO */
+    /* Carrito Contenedor */
     .cart-container {
         background-color: #ffffff;
-        border: 2px solid #3b82f6;
-        border-radius: 16px;
+        border: 2px solid #2563eb;
+        border-radius: 18px;
         padding: 24px;
         margin-bottom: 25px;
-        box-shadow: 0 8px 20px rgba(59, 130, 246, 0.1);
+        box-shadow: 0 10px 25px rgba(37, 99, 235, 0.1);
     }
 
     .total-card {
         background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        padding: 16px;
-        border-radius: 12px;
+        padding: 18px;
+        border-radius: 14px;
         color: #ffffff;
         font-weight: 800;
-        font-size: 1.3rem;
+        font-size: 1.4rem;
         text-align: center;
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.25);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -125,7 +126,11 @@ st.markdown("""
 def cargar_csv(filepath, columnas_defecto):
     if os.path.exists(filepath):
         try:
-            return pd.read_csv(filepath)
+            df = pd.read_csv(filepath)
+            for col in columnas_defecto:
+                if col not in df.columns:
+                    df[col] = "NO" if col == "ES_TITULO" else ""
+            return df
         except Exception:
             return pd.DataFrame(columns=columnas_defecto)
     else:
@@ -159,7 +164,12 @@ def producto_es_vendible(df_inv, categoria):
     if fila.empty:
         return False
     row = fila.iloc[0]
-    return row.get("CAMA_BASE", "") != "SI" and row.get("COLCHON_BASE", "") != "SI"
+    
+    es_titulo = str(row.get("ES_TITULO", "NO")).strip().upper() in ["SI", "SÍ", "TRUE", "1"]
+    cama_base = str(row.get("CAMA_BASE", "NO")).strip().upper() == "SI"
+    colchon_base = str(row.get("COLCHON_BASE", "NO")).strip().upper() == "SI"
+    
+    return not (es_titulo or cama_base or colchon_base)
 
 def agregar_combo_al_carrito(sel_cama, sel_colchon, precio_combo):
     prc_c = float(st.session_state["df_inv"][st.session_state["df_inv"]["CATEGORIA"] == sel_cama]["PRECIO"].values[0]) if sel_cama else 0.0
@@ -181,7 +191,6 @@ def agregar_combo_al_carrito(sel_cama, sel_colchon, precio_combo):
     return True
 
 def verificar_admin():
-    """Función para validar el acceso de administrador en las pestañas restringidas"""
     if "admin_autenticado" not in st.session_state:
         st.session_state["admin_autenticado"] = False
 
@@ -208,7 +217,7 @@ def verificar_admin():
 
 
 # --- CARGA DE DATOS Y ESTADO DE SESIÓN ---
-COLS_INV = ["CATEGORIA", "STOCK", "STOCK_MINIMO", "PRECIO", "COSTO", "MEDIDA", "CAMA_BASE", "COLCHON_BASE"]
+COLS_INV = ["CATEGORIA", "STOCK", "STOCK_MINIMO", "PRECIO", "COSTO", "MEDIDA", "CAMA_BASE", "COLCHON_BASE", "ES_TITULO", "PADRE"]
 COLS_VENTAS = ["FECHA", "CATEGORIA", "CANTIDAD", "PRECIO_UNITARIO", "TOTAL", "ABONADO", "SALDO_PENDIENTE", "METODO_PAGO", "CLIENTE", "CEDULA", "TELEFONO", "CORREO", "DIRECCION", "ESTADO", "FOTO"]
 COLS_APARTADOS = ["ID", "FECHA", "CLIENTE", "TELEFONO", "CATEGORIA", "TOTAL", "ABONADO", "SALDO", "ESTADO", "FECHA_ENTREGA"]
 
@@ -229,12 +238,12 @@ df_inv = st.session_state["df_inv"]
 df_ventas = st.session_state["df_ventas"]
 df_apartados = st.session_state["df_apartados"]
 
-# Redirección automática a WhatsApp
+# Redirección a WhatsApp
 if st.session_state["redirect_url"]:
     url = st.session_state["redirect_url"]
     st.session_state["redirect_url"] = None
     st.markdown(f'<meta http-equiv="refresh" content="0;url={url}">', unsafe_allow_html=True)
-    st.success("Redirigiendo a WhatsApp para enviar el comprobante...")
+    st.success("Redirigiendo a WhatsApp...")
 
 
 # --- INTERFAZ PRINCIPAL CON PESTAÑAS ---
@@ -244,21 +253,23 @@ tab_venta, tab_apartados, tab_inv, tab_historial = st.tabs([
 
 
 # ============================================================
-#                 TAB 1: VENDER (LIBRE ACCESO)
+#                 TAB 1: VENDER
 # ============================================================
 with tab_venta:
     if df_inv.empty:
         st.info("📦 No hay productos registrados en el inventario.")
     else:
-        # 1. Promoción: Armar Combo
-        camas_disponibles = df_inv[
-            df_inv["CATEGORIA"].str.contains("CAMA", case=False, na=False) & (df_inv["STOCK"] > 0)
+        subproductos = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]
+
+        camas_disponibles = subproductos[
+            subproductos["CATEGORIA"].str.contains("CAMA", case=False, na=False) & (subproductos["STOCK"] > 0)
         ]["CATEGORIA"].tolist()
         
-        colchones_disponibles = df_inv[
-            df_inv["CATEGORIA"].str.contains("COLCHON|COLCHÓN", case=False, na=False) & (df_inv["STOCK"] > 0)
+        colchones_disponibles = subproductos[
+            subproductos["CATEGORIA"].str.contains("COLCHON|COLCHÓN", case=False, na=False) & (subproductos["STOCK"] > 0)
         ]["CATEGORIA"].tolist()
 
+        # 1. Promoción: Armar Combo
         if camas_disponibles and colchones_disponibles:
             st.markdown("""
             <div class="combo-card">
@@ -306,7 +317,6 @@ with tab_venta:
                 subtotal = 0.0
                 st.write("---")
                 
-                # Listar productos
                 for i, item in enumerate(list(st.session_state["carrito"])):
                     tot_item = item["cantidad"] * item["precio"]
                     subtotal += tot_item
@@ -387,13 +397,12 @@ with tab_venta:
 
         st.markdown("---")
 
-        # 4. CATÁLOGO REDISEÑADO
+        # 4. CATÁLOGO DE PRODUCTOS
         st.markdown("### 🛍️ Catálogo de Productos")
         
         cols_grid = st.columns(3)
-        vendibles = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))].copy()
 
-        for i, (_, row) in enumerate(vendibles.iterrows()):
+        for i, (_, row) in enumerate(subproductos.iterrows()):
             stk = int(row['STOCK'])
             stk_min = int(row['STOCK_MINIMO'])
             
@@ -452,8 +461,8 @@ with tab_apartados:
                 c_cliente = col_ap1.text_input("👤 Nombre Cliente")
                 c_tel = col_ap2.text_input("📞 Teléfono WhatsApp")
                 
-                prods_inv = df_inv["CATEGORIA"].tolist() if not df_inv.empty else []
-                c_prod = col_ap1.selectbox("🛏️ Producto a Reservar", prods_inv)
+                prods_vendibles = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]["CATEGORIA"].tolist()
+                c_prod = col_ap1.selectbox("🛏️ Producto a Reservar", prods_vendibles)
                 
                 c_tot = col_ap2.number_input("💵 Precio Total ($)", min_value=0.0, step=5.0)
                 c_abono = col_ap1.number_input("💰 Abono Inicial ($)", min_value=0.0, step=5.0)
@@ -495,35 +504,62 @@ with tab_apartados:
 with tab_inv:
     st.session_state["active_tab"] = "inventario"
     if verificar_admin():
-        st.markdown("### 📦 Control de Inventario y Productos")
+        st.markdown("### 📦 Control de Inventario y Categorías")
         
-        with st.expander("➕ Agregar Nuevo Producto al Inventario", expanded=False):
+        # 1. FORMULARIO PARA REGISTRAR O MARCAR PRODUCTOS / TÍTULOS
+        with st.expander("➕ Agregar Nuevo Producto o Categoría/Título", expanded=False):
             with st.form("form_nuevo_inv"):
                 col_i1, col_i2 = st.columns(2)
                 p_cat = col_i1.text_input("🏷️ Categoría / Nombre Producto")
-                p_stock = col_i2.number_input("📦 Stock Inicial", min_value=0, value=10, step=1)
-                p_min = col_i1.number_input("⚠️ Stock Mínimo Alerta", min_value=0, value=2, step=1)
+                es_titulo = col_i2.selectbox("📌 ¿Es solo un Título/Categoría? (No vendible)", ["NO", "SI"])
+                
+                titulos_padre = df_inv[df_inv["ES_TITULO"] == "SI"]["CATEGORIA"].tolist()
+                padre_sel = col_i1.selectbox("📂 Pertenece a Categoría Padre (Opcional)", ["Ninguno"] + titulos_padre)
+
+                p_stock = col_i2.number_input("📦 Stock Inicial", min_value=0, value=0 if es_titulo == "SI" else 10, step=1)
+                p_min = col_i1.number_input("⚠️ Stock Mínimo Alerta", min_value=0, value=0 if es_titulo == "SI" else 2, step=1)
                 p_precio = col_i2.number_input("💵 Precio Venta ($)", min_value=0.0, value=0.0, step=5.0)
                 p_costo = col_i1.number_input("💲 Costo ($)", min_value=0.0, value=0.0, step=5.0)
                 p_medida = col_i2.text_input("📏 Medida / Tamaño", value="1.5 Plazas")
 
-                if st.form_submit_button("💾 Guardar Producto", use_container_width=True):
+                if st.form_submit_button("💾 Guardar en Inventario", use_container_width=True):
                     if p_cat:
+                        nombre_final = f"{padre_sel} - {p_cat}" if padre_sel != "Ninguno" and es_titulo == "NO" else p_cat
+                        
                         nuevo_p = {
-                            "CATEGORIA": p_cat,
+                            "CATEGORIA": nombre_final,
                             "STOCK": p_stock,
                             "STOCK_MINIMO": p_min,
                             "PRECIO": p_precio,
                             "COSTO": p_costo,
                             "MEDIDA": p_medida,
-                            "CAMA_BASE": "NO",
-                            "COLCHON_BASE": "NO"
+                            "CAMA_BASE": "SI" if es_titulo == "SI" and "CAMA" in p_cat.upper() else "NO",
+                            "COLCHON_BASE": "SI" if es_titulo == "SI" and "COLCHON" in p_cat.upper() else "NO",
+                            "ES_TITULO": es_titulo,
+                            "PADRE": padre_sel if padre_sel != "Ninguno" else ""
                         }
                         df_inv_act = pd.concat([st.session_state["df_inv"], pd.DataFrame([nuevo_p])], ignore_index=True)
                         guardar_csv(df_inv_act, FILE_INV)
                         st.session_state["df_inv"] = df_inv_act
-                        st.success("✅ Producto agregado correctamente")
+                        st.success("✅ Guardado correctamente")
                         st.rerun()
+
+        st.write("---")
+
+        # 2. EDITOR RÁPIDO PARA CAMBIAR 'ES_TITULO' EN PRODUCTOS EXISTENTES
+        with st.expander("✏️ Modificar si un Producto es Título o Vendible", expanded=False):
+            if not df_inv.empty:
+                prod_editar = st.selectbox("Selecciona ítem a modificar:", df_inv["CATEGORIA"].tolist(), key="sel_mod_titulo")
+                estado_actual = df_inv.loc[df_inv["CATEGORIA"] == prod_editar, "ES_TITULO"].values[0] if "ES_TITULO" in df_inv.columns else "NO"
+                nuevo_estado = st.radio("¿Marcar como Título/Solo Categoría?", ["NO", "SI"], index=1 if str(estado_actual).upper() in ["SI", "SÍ", "TRUE", "1"] else 0, key="rad_mod_titulo")
+                
+                if st.button("💾 Actualizar Estado del Ítem", use_container_width=True):
+                    df_inv_local = st.session_state["df_inv"]
+                    df_inv_local.loc[df_inv_local["CATEGORIA"] == prod_editar, "ES_TITULO"] = nuevo_estado
+                    guardar_csv(df_inv_local, FILE_INV)
+                    st.session_state["df_inv"] = df_inv_local
+                    st.success(f"✅ Se actualizó '{prod_editar}' a ES_TITULO = {nuevo_estado}")
+                    st.rerun()
 
         st.write("---")
         st.dataframe(st.session_state["df_inv"], use_container_width=True)
