@@ -18,7 +18,7 @@ NUMEROS_WHATSAPP = {
     "Vendedor 2 (0983576800)": "593983576800"
 }
 
-# --- ESTILOS CSS AVANZADOS ---
+# --- ESTILOS CSS PRO PARA EL CATÁLOGO ---
 st.markdown("""
 <style>
     .stApp { 
@@ -28,100 +28,78 @@ st.markdown("""
 
     .catalog-card {
         background: #ffffff;
-        border-radius: 20px;
-        overflow: hidden;
+        border-radius: 16px;
         border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        margin-bottom: 24px;
-        position: relative;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        margin-bottom: 20px;
+        padding: 16px;
         display: flex;
         flex-direction: column;
+        justify-content: space-between;
+        height: 100%;
     }
     
     .catalog-card:hover {
-        transform: translateY(-6px);
-        box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
         border-color: #cbd5e1;
     }
 
-    .card-img-container {
+    .card-img-header {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-        height: 140px;
+        border-radius: 12px;
+        height: 120px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 3.5rem;
+        font-size: 3rem;
         position: relative;
+        margin-bottom: 12px;
     }
 
     .badge-float {
         position: absolute;
-        top: 12px;
-        right: 12px;
-        padding: 5px 12px;
-        border-radius: 20px;
-        font-size: 0.72rem;
-        font-weight: 800;
+        top: 8px;
+        right: 8px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: 700;
         letter-spacing: 0.5px;
         text-transform: uppercase;
-        backdrop-filter: blur(8px);
-        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
     }
-    .badge-ok { background: rgba(220, 252, 231, 0.95); color: #15803d; border: 1px solid #bbf7d0; }
-    .badge-low { background: rgba(254, 243, 199, 0.95); color: #b45309; border: 1px solid #fde68a; }
-    .badge-out { background: rgba(254, 226, 226, 0.95); color: #b91c1c; border: 1px solid #fecaca; }
-
-    .card-body {
-        padding: 18px;
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-    }
+    .badge-ok { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .badge-low { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .badge-out { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
     .card-title {
-        font-size: 1.05rem;
+        font-size: 1rem;
         font-weight: 700;
         color: #0f172a;
-        line-height: 1.35;
-        margin-bottom: 12px;
-        min-height: 44px;
+        line-height: 1.3;
+        margin-bottom: 8px;
+        min-height: 42px;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
 
-    .card-footer-info {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        padding-top: 10px;
-        border-top: 1px dashed #f1f5f9;
-    }
-
-    .card-price-label {
-        font-size: 0.75rem;
-        color: #64748b;
-        font-weight: 600;
-        text-transform: uppercase;
-    }
-
-    .card-price {
-        font-size: 1.45rem;
+    .card-price-tag {
+        font-size: 1.4rem;
         font-weight: 800;
         color: #2563eb;
-        letter-spacing: -0.5px;
+        margin-bottom: 10px;
     }
 
     .promo-banner {
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%);
+        background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
         color: #ffffff;
-        border-radius: 20px;
-        padding: 22px 28px;
-        margin-bottom: 30px;
-        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3);
+        border-radius: 16px;
+        padding: 20px 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -213,6 +191,8 @@ if "redirect_url" not in st.session_state:
     st.session_state["redirect_url"] = None
 if "abrir_dialogo" not in st.session_state:
     st.session_state["abrir_dialogo"] = False
+if "filtro_categoria" not in st.session_state:
+    st.session_state["filtro_categoria"] = "TODOS"
 
 for col in COLS_INV:
     if col not in st.session_state["df_inv"].columns:
@@ -312,7 +292,6 @@ def abrir_modal_carrito():
             st.rerun()
 
 
-# --- ACTIVAR MODAL SI CORRESPONDE ---
 if st.session_state["abrir_dialogo"]:
     abrir_modal_carrito()
 
@@ -324,7 +303,7 @@ tab_venta, tab_apartados, tab_inv, tab_historial = st.tabs([
 
 
 # ============================================================
-#            TAB 1: CATÁLOGO Y VENTA
+#            TAB 1: CATÁLOGO Y VENTA (RESEÑADO Y MEJORADO)
 # ============================================================
 with tab_venta:
     col_hdr1, col_hdr2, col_hdr3 = st.columns([2, 1, 1])
@@ -346,6 +325,7 @@ with tab_venta:
     else:
         subproductos = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]
 
+        # PROMOCIÓN COMBO
         camas_disponibles = subproductos[subproductos["CATEGORIA"].str.contains("CAMA", case=False, na=False) & (subproductos["STOCK"] > 0)]["CATEGORIA"].tolist()
         colchones_disponibles = subproductos[subproductos["CATEGORIA"].str.contains("COLCHON|COLCHÓN", case=False, na=False) & (subproductos["STOCK"] > 0)]["CATEGORIA"].tolist()
 
@@ -369,12 +349,28 @@ with tab_venta:
 
         st.divider()
 
-        search_query = st.text_input("🔍 Buscar productos por nombre...", placeholder="Ej: Cama tapizada, Colchón...")
+        # BOTONES DE FILTRO RÁPIDO
+        f1, f2, f3 = st.columns([1, 1, 3])
+        if f1.button("📌 Todos los Productos", use_container_width=True):
+            st.session_state["filtro_categoria"] = "TODOS"
+        if f2.button("🛏️ Solo Camas", use_container_width=True):
+            st.session_state["filtro_categoria"] = "CAMA"
+        if f3.button("💤 Solo Colchones", use_container_width=True):
+            st.session_state["filtro_categoria"] = "COLCHON"
+
+        # BUSCADOR
+        search_query = st.text_input("🔍 Buscar por nombre de producto...", placeholder="Ej: Tapizada, Sueño Total...")
+        
+        # FILTRADO DE DATOS
+        if st.session_state["filtro_categoria"] != "TODOS":
+            subproductos = subproductos[subproductos["CATEGORIA"].str.contains(st.session_state["filtro_categoria"], case=False, na=False)]
+
         if search_query:
             subproductos = subproductos[subproductos["CATEGORIA"].str.contains(search_query, case=False, na=False)]
 
         st.write("")
 
+        # TARJETAS DE PRODUCTOS
         cols_per_row = 3
         cols = st.columns(cols_per_row)
 
@@ -385,7 +381,7 @@ with tab_venta:
             if stk <= 0:
                 badge = '<span class="badge-float badge-out">Agotado</span>'
             elif stk <= stk_min:
-                badge = f'<span class="badge-float badge-low">Quedan {stk}</span>'
+                badge = f'<span class="badge-float badge-low">¡Últimas {stk} unid!</span>'
             else:
                 badge = f'<span class="badge-float badge-ok">Stock: {stk}</span>'
 
@@ -394,35 +390,34 @@ with tab_venta:
             with cols[idx % cols_per_row]:
                 st.markdown(f"""
                 <div class="catalog-card">
-                    <div class="card-img-container">
+                    <div class="card-img-header">
                         {badge}
                         <span>{icono}</span>
                     </div>
-                    <div class="card-body">
-                        <div class="card-title">{row['CATEGORIA']}</div>
-                        <div class="card-footer-info">
-                            <div>
-                                <div class="card-price-label">Precio</div>
-                                <div class="card-price">${row['PRECIO']:,.2f}</div>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="card-title">{row['CATEGORIA']}</div>
+                    <div class="card-price-tag">${row['PRECIO']:,.2f}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
                 if stk > 0:
-                    if st.button("🛒 Agregar al Carrito", key=f"add_{idx}", use_container_width=True, type="secondary"):
+                    c_cant, c_btn = st.columns([1, 2])
+                    cant_pedir = c_cant.number_input("Cant:", min_value=1, max_value=stk, value=1, key=f"cant_in_{idx}")
+                    
+                    if c_btn.button("🛒 Añadir", key=f"add_{idx}", use_container_width=True, type="secondary"):
                         encontrado = False
                         for item in st.session_state["carrito"]:
                             if item["producto"] == row['CATEGORIA']:
-                                if item["cantidad"] + 1 <= stk:
-                                    item["cantidad"] += 1
+                                if item["cantidad"] + cant_pedir <= stk:
+                                    item["cantidad"] += cant_pedir
+                                    encontrado = True
+                                else:
+                                    item["cantidad"] = stk
                                     encontrado = True
                                 break
                         if not encontrado:
                             st.session_state["carrito"].append({
                                 "producto": row['CATEGORIA'],
-                                "cantidad": 1,
+                                "cantidad": cant_pedir,
                                 "precio": float(row['PRECIO'])
                             })
                         st.session_state["abrir_dialogo"] = True
@@ -548,11 +543,9 @@ with tab_historial:
         
         st.divider()
         
-        # SECCIÓN DE ELIMINACIÓN PROTEGIDA POR CLAVE
         with st.expander("🗑️ Eliminar Registro de Venta (Requiere Clave)"):
-            st.write("Selecciona el índice o registro que deseas eliminar:")
+            st.write("Selecciona el registro que deseas eliminar:")
             
-            # Lista de ventas disponibles por su índice y fecha/cliente
             opciones_ventas = [f"Fila {i}: {row['FECHA']} - {row['CLIENTE']} (${row['TOTAL']:.2f})" 
                                for i, row in st.session_state["df_ventas"].iterrows()]
             
