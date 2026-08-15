@@ -78,7 +78,7 @@ def guardar_csv(df, ruta):
     df.to_csv(
         ruta,
         index=False,
-        encoding="utf-8-sig",
+        encoding="utf-utf-8-sig" if "utf-utf" in "" else "utf-8-sig",
     )
 
 
@@ -609,55 +609,95 @@ with tab_inventario:
     clave_admin = st.text_input("🔐 Clave Admin", type="password", key="clave_inv")
 
     if clave_admin == CLAVE_ADMIN:
-        st.markdown("#### ➕ Crear Producto (Contenedor) o Subproducto (Con Precio)")
+        st.markdown("#### ➕ Crear Repositorio, Producto o Subproducto")
 
         principales = [n for n in df_inv["CATEGORIA"].tolist() if " - " not in str(n)]
-        opcion_padre = st.selectbox("📂 Seleccione Categoría Principal", ["✨ CREAR NUEVO REPOSITORIO / CATEGORÍA"] + principales)
 
-        if opcion_padre == "✨ CREAR NUEVO REPOSITORIO / CATEGORÍA":
+        opciones_creacion = [
+            "✨ CREAR NUEVO REPOSITORIO / CATEGORÍA (Sin precio)",
+            "📦 CREAR PRODUCTO SIMPLE (Con precio y stock)",
+        ] + principales
+
+        opcion_padre = st.selectbox("📂 Seleccione Acción o Categoría Padre", opciones_creacion)
+
+        # OPCIÓN 1: Crear Categoría Principal / Repositorio
+        if opcion_padre == "✨ CREAR NUEVO REPOSITORIO / CATEGORÍA (Sin precio)":
             nuevo_nombre_cat = st.text_input("📦 Nombre de la nueva Categoría Principal (Ej. Camas)")
-            if st.button("➕ CREAR REPOSITORIO PRINCIPAL"):
-                if nuevo_nombre_cat.strip() and not existe_producto(df_inv, nuevo_nombre_cat.strip()):
-                    nuevo_reg = pd.DataFrame([{"CATEGORIA": nuevo_nombre_cat.strip(), "STOCK": 0, "PRECIO": 0.0}])
+            if st.button("➕ CREAR REPOSITORIO PRINCIPAL", use_container_width=True):
+                nombre_limpio = nuevo_nombre_cat.strip()
+                if not nombre_limpio:
+                    st.warning("⚠️ Escriba el nombre de la categoría.")
+                elif existe_producto(df_inv, nombre_limpio):
+                    st.error("❌ La categoría ya existe.")
+                else:
+                    nuevo_reg = pd.DataFrame([{"CATEGORIA": nombre_limpio, "STOCK": 0, "PRECIO": 0.0}])
                     df_inv = pd.concat([df_inv, nuevo_reg], ignore_index=True)
                     guardar_csv(df_inv, FILE_INV)
-                    st.success(f"📂 Repositorio principal '{nuevo_nombre_cat.strip()}' creado (Sin precio individual).")
+                    st.success(f"📂 Repositorio '{nombre_limpio}' creado con éxito.")
                     st.rerun()
-        else:
-            sub_nombre = st.text_input("🛏️ Nombre del Subproducto (Ej. Cama de 3 plazas)")
-            st_sub = st.number_input("📦 Stock Inicial", min_value=0, value=1)
-            pr_sub = st.number_input("💰 Precio ($)", min_value=0.0, value=50.0, step=5.0)
 
-            if st.button("➕ CREAR SUBPRODUCTO"):
-                nombre_final = f"{opcion_padre} - {sub_nombre.strip()}"
-                if not sub_nombre.strip():
+        # OPCIÓN 2: Crear Producto Simple (Sin subproductos)
+        elif opcion_padre == "📦 CREAR PRODUCTO SIMPLE (Con precio y stock)":
+            nom_simple = st.text_input("📦 Nombre del Producto (Ej. Velador)")
+            st_simple = st.number_input("📦 Stock Inicial", min_value=0, value=1, key="st_sim")
+            pr_simple = st.number_input("💰 Precio ($)", min_value=0.0, value=25.0, step=5.0, key="pr_sim")
+
+            if st.button("➕ CREAR PRODUCTO SIMPLE", use_container_width=True):
+                nombre_limpio = nom_simple.strip()
+                if not nombre_limpio:
+                    st.warning("⚠️ Escriba el nombre del producto.")
+                elif pr_simple <= 0:
+                    st.warning("⚠️ Ingrese un precio válido mayor a $0.")
+                elif existe_producto(df_inv, nombre_limpio):
+                    st.error("❌ El producto ya existe.")
+                else:
+                    nuevo_reg = pd.DataFrame([{"CATEGORIA": nombre_limpio, "STOCK": st_simple, "PRECIO": pr_simple}])
+                    df_inv = pd.concat([df_inv, nuevo_reg], ignore_index=True)
+                    guardar_csv(df_inv, FILE_INV)
+                    st.success(f"🎉 Producto '{nombre_limpio}' creado con éxito.")
+                    st.rerun()
+
+        # OPCIÓN 3: Crear Subproducto dentro de un Repositorio Existente
+        else:
+            sub_nombre = st.text_input(f"🛏️ Subproducto para '{opcion_padre}' (Ej. Cama 3 Plazas)")
+            st_sub = st.number_input("📦 Stock Inicial", min_value=0, value=1, key="st_sub")
+            pr_sub = st.number_input("💰 Precio ($)", min_value=0.0, value=50.0, step=5.0, key="pr_sub")
+
+            if st.button("➕ CREAR SUBPRODUCTO", use_container_width=True):
+                nombre_limpio = sub_nombre.strip()
+                nombre_final = f"{opcion_padre} - {nombre_limpio}"
+
+                if not nombre_limpio:
                     st.warning("⚠️ Escriba el nombre del subproducto.")
                 elif pr_sub <= 0:
-                    st.warning("⚠️ Los subproductos deben tener un precio asignado mayor a $0.")
+                    st.warning("⚠️ Los subproductos deben tener un precio mayor a $0.")
                 elif existe_producto(df_inv, nombre_final):
                     st.error("❌ El subproducto ya existe.")
                 else:
                     nuevo_reg = pd.DataFrame([{"CATEGORIA": nombre_final, "STOCK": st_sub, "PRECIO": pr_sub}])
                     df_inv = pd.concat([df_inv, nuevo_reg], ignore_index=True)
                     guardar_csv(df_inv, FILE_INV)
-                    st.success(f"🎉 Subproducto '{nombre_final}' creado exitosamente con precio ${pr_sub:,.2f}.")
+                    st.success(f"🎉 Subproducto '{nombre_final}' guardado exitosamente.")
                     st.rerun()
 
         st.markdown("---")
         st.markdown("#### 📊 Listado de Inventario")
-        for _, fila in df_inv.iterrows():
-            nom = str(fila["CATEGORIA"])
-            stk = max(0, int(fila["STOCK"]))
-            prc = float(fila["PRECIO"])
-            es_p = es_categoria_principal(df_inv, nom)
+        if df_inv.empty:
+            st.info("No hay productos en el inventario.")
+        else:
+            for _, fila in df_inv.iterrows():
+                nom = str(fila["CATEGORIA"])
+                stk = max(0, int(fila["STOCK"]))
+                prc = float(fila["PRECIO"])
+                es_p = es_categoria_principal(df_inv, nom)
 
-            c1, c2, c3 = st.columns([3, 1.5, 1.5])
-            with c1:
-                st.write(f"**{nom}** {'📂 *(Repositorio)*' if es_p else ''}")
-            with c2:
-                st.write(f"Stock: {stk} ud.")
-            with c3:
-                st.write("—" if es_p else f"${prc:,.2f}")
+                c1, c2, c3 = st.columns([3, 1.5, 1.5])
+                with c1:
+                    st.write(f"**{nom}** {'📂 *(Repositorio)*' if es_p else ''}")
+                with c2:
+                    st.write(f"Stock: {stk} ud.")
+                with c3:
+                    st.write("—" if es_p else f"${prc:,.2f}")
 
 # ============================================================
 #                 TAB 4 - HISTORIAL
