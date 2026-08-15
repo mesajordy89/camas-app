@@ -24,10 +24,8 @@ NUMEROS_WHATSAPP = {
 # --- ESTILOS CSS REFINADOS ---
 st.markdown("""
 <style>
-    /* Fondo principal y tipografía base */
     .stApp { background-color: #f8fafc; }
 
-    /* Tarjetas de Promoción / Combo */
     .combo-card {
         background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
         border: 2px dashed #2563eb;
@@ -47,7 +45,6 @@ st.markdown("""
         gap: 8px;
     }
 
-    /* Tarjetas de Productos */
     .prod-card-v2 {
         background: #ffffff;
         border-radius: 16px;
@@ -84,7 +81,6 @@ st.markdown("""
         letter-spacing: -0.5px;
     }
 
-    /* Badges de Estado / Stock */
     .card-badge {
         display: inline-block;
         padding: 5px 12px;
@@ -98,7 +94,6 @@ st.markdown("""
     .badge-low { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
     .badge-out { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
-    /* Carrito Contenedor */
     .cart-container {
         background-color: #ffffff;
         border: 2px solid #2563eb;
@@ -127,6 +122,7 @@ def cargar_csv(filepath, columnas_defecto):
     if os.path.exists(filepath):
         try:
             df = pd.read_csv(filepath)
+            # Garantizar que todas las columnas por defecto existan
             for col in columnas_defecto:
                 if col not in df.columns:
                     df[col] = "NO" if col == "ES_TITULO" else ""
@@ -234,6 +230,11 @@ if "redirect_url" not in st.session_state:
 if "mostrar_carrito" not in st.session_state:
     st.session_state["mostrar_carrito"] = False
 
+# Validación estricta de estructura de columnas en el DataFrame de sesión
+for col in COLS_INV:
+    if col not in st.session_state["df_inv"].columns:
+        st.session_state["df_inv"][col] = "NO" if col == "ES_TITULO" else ""
+
 df_inv = st.session_state["df_inv"]
 df_ventas = st.session_state["df_ventas"]
 df_apartados = st.session_state["df_apartados"]
@@ -306,7 +307,7 @@ with tab_venta:
             st.session_state["mostrar_carrito"] = not st.session_state["mostrar_carrito"]
             st.rerun()
 
-        # 3. SECCIÓN DIRECTA DEL CARRITO EN LA MISMA PÁGINA
+        # 3. SECCIÓN DIRECTA DEL CARRITO
         if st.session_state["mostrar_carrito"]:
             st.markdown('<div class="cart-container">', unsafe_allow_html=True)
             st.markdown("### 🛒 Carrito de Compras Actual")
@@ -513,7 +514,8 @@ with tab_inv:
                 p_cat = col_i1.text_input("🏷️ Categoría / Nombre Producto")
                 es_titulo = col_i2.selectbox("📌 ¿Es solo un Título/Categoría? (No vendible)", ["NO", "SI"])
                 
-                titulos_padre = df_inv[df_inv["ES_TITULO"] == "SI"]["CATEGORIA"].tolist()
+                # Búsqueda segura de títulos padre existentes
+                titulos_padre = df_inv[df_inv["ES_TITULO"].astype(str).str.upper().isin(["SI", "SÍ", "TRUE", "1"])]["CATEGORIA"].tolist()
                 padre_sel = col_i1.selectbox("📂 Pertenece a Categoría Padre (Opcional)", ["Ninguno"] + titulos_padre)
 
                 p_stock = col_i2.number_input("📦 Stock Inicial", min_value=0, value=0 if es_titulo == "SI" else 10, step=1)
@@ -550,8 +552,12 @@ with tab_inv:
         with st.expander("✏️ Modificar si un Producto es Título o Vendible", expanded=False):
             if not df_inv.empty:
                 prod_editar = st.selectbox("Selecciona ítem a modificar:", df_inv["CATEGORIA"].tolist(), key="sel_mod_titulo")
-                estado_actual = df_inv.loc[df_inv["CATEGORIA"] == prod_editar, "ES_TITULO"].values[0] if "ES_TITULO" in df_inv.columns else "NO"
-                nuevo_estado = st.radio("¿Marcar como Título/Solo Categoría?", ["NO", "SI"], index=1 if str(estado_actual).upper() in ["SI", "SÍ", "TRUE", "1"] else 0, key="rad_mod_titulo")
+                
+                estado_val = df_inv.loc[df_inv["CATEGORIA"] == prod_editar, "ES_TITULO"].values
+                estado_actual = estado_val[0] if len(estado_val) > 0 else "NO"
+                
+                idx_rad = 1 if str(estado_actual).upper() in ["SI", "SÍ", "TRUE", "1"] else 0
+                nuevo_estado = st.radio("¿Marcar como Título/Solo Categoría?", ["NO", "SI"], index=idx_rad, key="rad_mod_titulo")
                 
                 if st.button("💾 Actualizar Estado del Ítem", use_container_width=True):
                     df_inv_local = st.session_state["df_inv"]
