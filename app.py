@@ -2,6 +2,7 @@ from datetime import datetime
 import io
 import os
 import textwrap
+import urllib.parse
 import pandas as pd
 import streamlit as st
 
@@ -25,11 +26,13 @@ st.set_page_config(
 )
 
 CLAVE_ACCESO = "1234"
-CLAVE_ADMIN = "199818"
+CLAVE_ADMIN = "1234"
 
 FILE_INV = "inventario.csv"
 FILE_VENTAS = "ventas.csv"
 CARPETA_FOTOS = "fotos_ventas"
+
+NUMEROS_WHATSAPP = ["593990847819", "593983576800"]
 
 os.makedirs(CARPETA_FOTOS, exist_ok=True)
 
@@ -174,6 +177,20 @@ def generar_pdf_recibo(venta_dict):
     buffer.seek(0)
     return buffer
 
+def generar_link_whatsapp(numero, venta_dict):
+    mensaje = f"""🛏️ *LOCAL MESITAS - RECIBO DE VENTA*
+📅 *Fecha:* {venta_dict.get('FECHA')}
+👤 *Cliente:* {venta_dict.get('CLIENTE')}
+🆔 *Cédula:* {venta_dict.get('CEDULA')}
+📦 *Producto:* {venta_dict.get('CATEGORIA')} (x{venta_dict.get('CANTIDAD')})
+💰 *Total:* ${venta_dict.get('TOTAL'):,.2f}
+💳 *Pago:* {venta_dict.get('METODO_PAGO')}
+📌 *Estado:* {venta_dict.get('ESTADO')}
+
+¡Gracias por su compra!"""
+    mensaje_enc = urllib.parse.quote(mensaje)
+    return f"https://wa.me/{numero}?text={mensaje_enc}"
+
 def es_subproducto(nombre): return " - " in str(nombre)
 def obtener_subproductos(df, principal):
     prefijo = str(principal).strip() + " - "
@@ -203,6 +220,9 @@ def existe_producto(df, nombre):
 
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
+
+if "ultima_venta" not in st.session_state:
+    st.session_state["ultima_venta"] = None
 
 st.session_state["df_inv"] = cargar_inventario()
 st.session_state["df_ventas"] = cargar_ventas()
@@ -335,7 +355,8 @@ with tab_venta:
                     a1, a2, a3 = st.columns(3)
                     cantidad = 1 if es_combo else a1.number_input("🔢 Cantidad", min_value=1, max_value=stock_disp, value=1)
                     metodo_pago = a2.selectbox("💳 Método de Pago", ["Efectivo", "Transferencia", "Tarjeta"])
-                    descuento = a3.number_input("🏷️ Descuento ($)", min_value=0.0, value=0.0)
+                    # DESCUENTO MÁXIMO LIMITADO A $10 DÓLARES
+                    descuento = a3.number_input("🏷️ Descuento ($ Máx $10)", min_value=0.0, max_value=10.0, value=0.0, step=1.0)
 
                     c_nom = st.text_input("👤 Nombre Cliente", value="Cliente General")
                     c_ced = st.text_input("🆔 Cédula/RUC", value="S/N")
@@ -367,12 +388,30 @@ with tab_venta:
                         df_v_actualizado = pd.concat([st.session_state["df_ventas"], pd.DataFrame([nueva_v_dict])], ignore_index=True)
                         guardar_csv(df_v_actualizado, FILE_VENTAS)
                         st.session_state["df_ventas"] = df_v_actualizado
+                        st.session_state["ultima_venta"] = nueva_v_dict
 
                         st.success("✅ ¡Venta efectuada con éxito!")
-                        if HAS_REPORTLAB:
-                            pdf_buf = generar_pdf_recibo(nueva_v_dict)
-                            st.download_button("📄 Descargar Recibo PDF", data=pdf_buf, file_name=f"recibo_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf", mime="application/pdf")
                         st.rerun()
+
+        # ÁREA DE ENVIAR RECIBO Y DESCARGAR TRAS FINALIZAR VENTA
+        if st.session_state.get("ultima_venta"):
+            st.markdown("---")
+            st.markdown("### 📄 Opciones de Recibo y Envío")
+            v_ult = st.session_state["ultima_venta"]
+
+            c_w1, c_w2 = st.columns(2)
+            with c_w1:
+                link_w1 = generar_link_whatsapp("593990847819", v_ult)
+                st.markdown(f'<a href="{link_w1}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:12px; border-radius:10px; font-weight:bold; cursor:pointer;">📲 ENVIAR RECIBO A 0990847819</button></a>', unsafe_allow_html=True)
+
+            with c_w2:
+                link_w2 = generar_link_whatsapp("593983576800", v_ult)
+                st.markdown(f'<a href="{link_w2}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:12px; border-radius:10px; font-weight:bold; cursor:pointer;">📲 ENVIAR RECIBO A 0983576800</button></a>', unsafe_allow_html=True)
+
+            if HAS_REPORTLAB:
+                pdf_buf = generar_pdf_recibo(v_ult)
+                st.write("")
+                st.download_button("📄 Descargar Recibo PDF", data=pdf_buf, file_name=f"recibo_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf", mime="application/pdf", use_container_width=True)
 
 # ------------------------------------------------------------
 # TAB 2: APARTADOS Y ABONOS
@@ -414,7 +453,7 @@ with tab_apartado:
                         guardar_csv(df_inv, FILE_INV)
                         st.session_state["df_inv"] = df_inv
 
-                        nuevo_ap = pd.DataFrame([{
+                        nuevo_ap = {
                             "FECHA": datetime.now().strftime("%Y-%m-%d %H:%M"),
                             "CATEGORIA": prod_ap, "CANTIDAD": cant_ap,
                             "PRECIO_UNITARIO": prc_ap, "TOTAL": tot_ap,
@@ -422,11 +461,12 @@ with tab_apartado:
                             "METODO_PAGO": "Efectivo", "CLIENTE": cli_ap,
                             "CEDULA": ced_ap, "TELEFONO": tel_ap, "CORREO": "",
                             "DIRECCION": "", "ESTADO": est_ap, "FOTO": "Sin foto"
-                        }])
+                        }
 
-                        df_v_act = pd.concat([st.session_state["df_ventas"], nuevo_ap], ignore_index=True)
+                        df_v_act = pd.concat([st.session_state["df_ventas"], pd.DataFrame([nuevo_ap])], ignore_index=True)
                         guardar_csv(df_v_act, FILE_VENTAS)
                         st.session_state["df_ventas"] = df_v_act
+                        st.session_state["ultima_venta"] = nuevo_ap
 
                         st.success("✅ Apartado registrado.")
                         st.rerun()
@@ -521,12 +561,11 @@ with tab_inventario:
         st.dataframe(df_inv, use_container_width=True)
 
 # ------------------------------------------------------------
-# TAB 4: HISTORIAL Y REPORTES (EXPORTACIÓN SEGURA A EXCEL/CSV)
+# TAB 4: HISTORIAL Y REPORTES (CON ELIMINACIÓN ADMIN)
 # ------------------------------------------------------------
 with tab_historial:
     st.markdown("### 📜 Historial de Ventas y Filtros")
     if not df_ventas.empty:
-        # Generar CSV con codificación compatible con Excel (utf-8-sig)
         csv_data = df_ventas.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
         
         st.download_button(
@@ -540,3 +579,20 @@ with tab_historial:
         st.dataframe(df_ventas, use_container_width=True, hide_index=True)
     else:
         st.info("Sin registros de ventas.")
+
+    st.markdown("---")
+    st.markdown("### 🗑️ Zona de Seguridad - Borrar Historial")
+    with st.expander("⚠️ Abrir Opciones de Eliminación de Ventas"):
+        st.warning("⚠️ **ATENCIÓN:** Esta acción eliminará todo el historial de ventas y reiniciará el valor recaudado a $0.00.")
+        clave_borrado = st.text_input("🔐 Ingrese Clave Administrador para autorizar el borrado", type="password", key="pwd_borrado")
+        
+        if st.button("🔥 ELIMINAR TODO EL HISTORIAL DE VENTAS", use_container_width=True):
+            if clave_borrado == CLAVE_ADMIN:
+                df_v_vacio = pd.DataFrame(columns=COLUMNAS_VENTAS)
+                guardar_csv(df_v_vacio, FILE_VENTAS)
+                st.session_state["df_ventas"] = df_v_vacio
+                st.session_state["ultima_venta"] = None
+                st.success("✅ El historial de ventas se ha borrado correctamente y los contadores han sido reiniciados.")
+                st.rerun()
+            else:
+                st.error("❌ Clave de administrador incorrecta.")
