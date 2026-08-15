@@ -59,14 +59,13 @@ COLUMNAS_VENTAS = [
 
 
 # ============================================================
-#            FUNCIÓN PARA HTML (CORREGIDA DE RAÍZ)
+#            FUNCIÓN PARA HTML
 # ============================================================
 
 def html(contenido):
     """
     Permite utilizar HTML correctamente en Streamlit
-    eliminando saltos de línea y sangrías redundantes que
-    hacen que Markdown interprete el HTML como texto o código plano.
+    eliminando saltos de línea y sangrías redundantes.
     """
     texto_limpio = textwrap.dedent(contenido).strip()
     texto_limpio = " ".join(line.strip() for line in texto_limpio.splitlines())
@@ -251,35 +250,7 @@ def cargar_inventario():
 
     else:
 
-        df = pd.DataFrame(
-            [
-                {
-                    "CATEGORIA": "Camas",
-                    "STOCK": 0,
-                    "PRECIO": 0.0,
-                },
-                {
-                    "CATEGORIA": "Colchones",
-                    "STOCK": 0,
-                    "PRECIO": 0.0,
-                },
-                {
-                    "CATEGORIA": "Armarios Grandes",
-                    "STOCK": 0,
-                    "PRECIO": 0.0,
-                },
-                {
-                    "CATEGORIA": "Armarios Pequeños",
-                    "STOCK": 0,
-                    "PRECIO": 0.0,
-                },
-                {
-                    "CATEGORIA": "Pajaritas",
-                    "STOCK": 0,
-                    "PRECIO": 0.0,
-                },
-            ]
-        )
+        df = pd.DataFrame()
 
     df = normalizar_inventario(df)
 
@@ -1140,31 +1111,6 @@ with r4:
 
 
 st.write("")
-
-
-# ============================================================
-#                 ALERTA STOCK
-# ============================================================
-
-stock_critico = df_inv[
-    df_inv["STOCK"] <= 2
-]
-
-if not stock_critico.empty:
-
-    lista_criticos = ", ".join(
-        [
-            f"{r['CATEGORIA']} "
-            f"({int(r['STOCK'])} ud.)"
-            for _, r
-            in stock_critico.iterrows()
-        ]
-    )
-
-    st.warning(
-        f"⚠️ **REVISE EL STOCK:** "
-        f"{lista_criticos}"
-    )
 
 
 # ============================================================
@@ -2997,6 +2943,21 @@ with tab_inventario:
         </div>
         """
     )
+
+    # ALERTA DE STOCK EXCLUSIVA DE ESTA SECCIÓN
+    stock_critico = df_inv[
+        (df_inv["STOCK"] <= 2) &
+        (df_inv.apply(lambda r: producto_es_vendible(df_inv, r["CATEGORIA"]), axis=1))
+    ]
+
+    if not stock_critico.empty:
+        lista_criticos = ", ".join(
+            [
+                f"{r['CATEGORIA']} ({int(r['STOCK'])} ud.)"
+                for _, r in stock_critico.iterrows()
+            ]
+        )
+        st.warning(f"⚠️ **PRODUCTOS CON STOCK BAJO O AGOTADO:** {lista_criticos}")
 
     clave_admin = st.text_input(
         "🔐 Clave de administrador",
