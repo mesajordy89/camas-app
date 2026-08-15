@@ -397,7 +397,7 @@ with tab_venta:
                                     item["cantidad"] = stk
                                     encontrado = True
                                 break
-                        if not expandable:
+                        if not encontrado:
                             st.session_state["carrito"].append({
                                 "producto": row['CATEGORIA'],
                                 "cantidad": cant_pedir,
@@ -469,7 +469,7 @@ with tab_apartados:
 
 
 # ============================================================
-#     TAB 3: INVENTARIO (PANEL INTERACTIVO TODO EN UNO)
+#     TAB 3: INVENTARIO (CON CONFIGURACIÓN DE TÍTULOS Y PADRE)
 # ============================================================
 with tab_inv:
     st.markdown("### 📦 Control de Inventario Unificado")
@@ -477,83 +477,110 @@ with tab_inv:
     if st.session_state.get("admin_autenticado", False):
         st.success("🔓 Modo Administrador Activo")
         
-        # OPCIÓN DE CREACIÓN RÁPIDA EN CABECERA
-        with st.expander("➕ ¿Crear Nuevo Producto desde cero?", expanded=False):
-            with st.form("form_nuevo_ultra_simple"):
+        # CREACIÓN RÁPIDA DE NUEVO PRODUCTO O TÍTULO
+        with st.expander("➕ Crear Nuevo Producto o Categoría/Título", expanded=False):
+            with st.form("form_nuevo_ultra_completo"):
                 c_n1, c_n2 = st.columns(2)
-                p_cat_nuevo = c_n1.text_input("🏷️ Nombre Producto", placeholder="Ej: CAMA TAPIZADA 2PLZ")
-                p_precio_nuevo = c_n2.number_input("💵 Precio Inicial ($)", min_value=0.0, value=0.0, step=5.0)
+                p_cat_nuevo = c_n1.text_input("🏷️ Nombre Producto / Categoría", placeholder="Ej: CAMAS o CAMA TAPIZADA 2PLZ")
+                es_tit_nuevo = c_n2.selectbox("📌 ¿Es solo un Título/Categoría? (No vendible directo)", ["NO", "SI"])
                 
-                if st.form_submit_button("✨ Registrar Nuevo Producto", type="primary", use_container_width=True):
+                titulos_padres = df_inv[df_inv["ES_TITULO"].astype(str).str.upper().isin(["SI", "SÍ", "TRUE", "1"])]["CATEGORIA"].tolist()
+                padre_nuevo = c_n1.selectbox("📂 Selecciona Categoría Padre (opcional):", ["Ninguno"] + titulos_padres)
+                
+                c_n3, c_n4 = st.columns(2)
+                p_stk_nuevo = c_n3.number_input("📦 Stock Inicial", min_value=0, value=0 if es_tit_nuevo == "SI" else 1)
+                p_precio_nuevo = c_n4.number_input("💵 Precio Venta ($)", min_value=0.0, value=0.0, step=5.0)
+                
+                if st.form_submit_button("✨ Registrar en Inventario", type="primary", use_container_width=True):
                     if p_cat_nuevo:
                         nuevo_p = {
                             "CATEGORIA": p_cat_nuevo,
-                            "STOCK": 1,
+                            "STOCK": p_stk_nuevo,
                             "STOCK_MINIMO": 1,
                             "PRECIO": p_precio_nuevo,
                             "COSTO": 0.0,
                             "MEDIDA": "Standard",
                             "CAMA_BASE": "NO",
                             "COLCHON_BASE": "NO",
-                            "ES_TITULO": "NO",
-                            "PADRE": ""
+                            "ES_TITULO": es_tit_nuevo,
+                            "PADRE": padre_nuevo if padre_nuevo != "Ninguno" else "None"
                         }
                         df_inv_act = pd.concat([st.session_state["df_inv"], pd.DataFrame([nuevo_p])], ignore_index=True)
                         guardar_csv(df_inv_act, FILE_INV)
                         st.session_state["df_inv"] = df_inv_act
-                        st.success(f"✅ ¡Producto {p_cat_nuevo} creado!")
+                        st.success(f"✅ ¡Guardado: {p_cat_nuevo}!")
                         st.rerun()
+                    else:
+                        st.error("❌ Escribe un nombre válido.")
 
         st.divider()
 
-        # CONTROL INTEGRADO ÚNICO
+        # CONTROL INTEGRADO Y EDICIÓN DIRECTA
         prods_lista = st.session_state["df_inv"]["CATEGORIA"].tolist()
         
         if prods_lista:
-            st.subheader("⚡ Edición Directa de Producto")
-            prod_sel = st.selectbox("📌 Selecciona el producto a editar:", prods_lista, key="u_prod_sel")
+            st.subheader("⚡ Edición Directa de Producto / Categoría")
+            prod_sel = st.selectbox("📌 Selecciona el elemento a editar:", prods_lista, key="u_prod_sel")
             
             fila_actual = st.session_state["df_inv"][st.session_state["df_inv"]["CATEGORIA"] == prod_sel].iloc[0]
             stk_actual = int(fila_actual.get("STOCK", 0)) if pd.notnull(fila_actual.get("STOCK")) else 0
             precio_actual = float(fila_actual.get("PRECIO", 0.0)) if pd.notnull(fila_actual.get("PRECIO")) else 0.0
+            es_titulo_actual = str(fila_actual.get("ES_TITULO", "NO")).strip().upper()
+            es_titulo_idx = 1 if es_titulo_actual in ["SI", "SÍ", "TRUE", "1"] else 0
+            padre_actual = str(fila_actual.get("PADRE", "None"))
 
             # TARJETA DE EDICIÓN FLUIDA
             with st.container(border=True):
-                col_i1, col_i2, col_i3 = st.columns([2, 2, 2])
+                col_i1, col_i2 = st.columns(2)
                 
                 n_stk = col_i1.number_input("📦 Cantidad en Stock", min_value=0, value=stk_actual, key="u_stk")
                 n_prc = col_i2.number_input("💵 Precio de Venta ($)", min_value=0.0, value=precio_actual, step=5.0, key="u_prc")
                 
-                # Botones de suma rápida
-                st.write("➕ **Agregar Stock Rápido (Llegada de Mercadería):**")
+                col_i3, col_i4 = st.columns(2)
+                n_es_titulo = col_i3.selectbox("📌 ¿Es solo un Título/Categoría?", ["NO", "SI"], index=es_titulo_idx, key="u_es_tit")
+                
+                titulos_padres = df_inv[df_inv["ES_TITULO"].astype(str).str.upper().isin(["SI", "SÍ", "TRUE", "1"])]["CATEGORIA"].tolist()
+                opciones_padre = ["None"] + [t for t in titulos_padres if t != prod_sel]
+                padre_idx = opciones_padre.index(padre_actual) if padre_actual in opciones_padre else 0
+                n_padre = col_i4.selectbox("📂 Categoría Padre:", opciones_padre, index=padre_idx, key="u_padre")
+
+                st.write("")
+                st.write("➕ **Añadir Stock Rápido (Llegada de Mercadería):**")
                 b_col1, b_col2, b_col3, b_col4 = st.columns([1, 1, 1, 3])
+                
                 if b_col1.button("+1 Stock"):
                     st.session_state["df_inv"].loc[st.session_state["df_inv"]["CATEGORIA"] == prod_sel, "STOCK"] += 1
                     guardar_csv(st.session_state["df_inv"], FILE_INV)
-                    st.success("+1 añadido")
                     st.rerun()
                 if b_col2.button("+5 Stock"):
                     st.session_state["df_inv"].loc[st.session_state["df_inv"]["CATEGORIA"] == prod_sel, "STOCK"] += 5
                     guardar_csv(st.session_state["df_inv"], FILE_INV)
-                    st.success("+5 añadidos")
                     st.rerun()
                 if b_col3.button("+10 Stock"):
                     st.session_state["df_inv"].loc[st.session_state["df_inv"]["CATEGORIA"] == prod_sel, "STOCK"] += 10
                     guardar_csv(st.session_state["df_inv"], FILE_INV)
-                    st.success("+10 añadidos")
                     st.rerun()
 
-                st.write("")
-                if b_col4.button("💾 GUARDAR PRECIO Y STOCK", type="primary", use_container_width=True):
+                if b_col4.button("💾 GUARDAR CAMBIOS DE ESTE PRODUCTO", type="primary", use_container_width=True):
                     st.session_state["df_inv"].loc[st.session_state["df_inv"]["CATEGORIA"] == prod_sel, "STOCK"] = n_stk
                     st.session_state["df_inv"].loc[st.session_state["df_inv"]["CATEGORIA"] == prod_sel, "PRECIO"] = n_prc
+                    st.session_state["df_inv"].loc[st.session_state["df_inv"]["CATEGORIA"] == prod_sel, "ES_TITULO"] = n_es_titulo
+                    st.session_state["df_inv"].loc[st.session_state["df_inv"]["CATEGORIA"] == prod_sel, "PADRE"] = n_padre
+                    
                     guardar_csv(st.session_state["df_inv"], FILE_INV)
                     st.success(f"✅ ¡{prod_sel} actualizado correctamente!")
                     st.rerun()
 
+                st.divider()
+                if st.button("🗑️ Eliminar este Producto/Categoría del Inventario", type="secondary"):
+                    st.session_state["df_inv"] = st.session_state["df_inv"][st.session_state["df_inv"]["CATEGORIA"] != prod_sel]
+                    guardar_csv(st.session_state["df_inv"], FILE_INV)
+                    st.success(f"🗑️ {prod_sel} eliminado.")
+                    st.rerun()
+
         st.divider()
 
-        # TABLA DE CONSULTA COMPLETA
+        # TABLA GENERAL DE CONSULTA
         st.subheader("📋 Resumen General de Todo el Inventario")
         st.dataframe(st.session_state["df_inv"], use_container_width=True)
 
@@ -562,7 +589,7 @@ with tab_inv:
             st.rerun()
 
     else:
-        st.info("👁️ Vista de Empleado (Solo lectura). Para modificar stock o precios, ingresa la clave de administrador.")
+        st.info("👁️ Vista de Empleado (Solo lectura). Para modificar stock, precios o categorías, ingresa la clave de administrador.")
         st.dataframe(st.session_state["df_inv"], use_container_width=True)
         
         with st.expander("🔑 Acceso Administrador para Editar Inventario"):
