@@ -137,32 +137,37 @@ if "carrito" not in st.session_state:
     st.session_state["carrito"] = []
 if "redirect_url" not in st.session_state:
     st.session_state["redirect_url"] = None
+if "abrir_carrito" not in st.session_state:
+    st.session_state["abrir_carrito"] = False
 
 df_inv = st.session_state["df_inv"]
 df_ventas = st.session_state["df_ventas"]
 df_apartados = st.session_state["df_apartados"]
 
-# Manejo de redirección automática a WhatsApp
+# Redirección automática a WhatsApp
 if st.session_state["redirect_url"]:
     url = st.session_state["redirect_url"]
     st.session_state["redirect_url"] = None
     st.markdown(f'<meta http-equiv="refresh" content="0;url={url}">', unsafe_allow_html=True)
-    st.success(" Redirigiendo a WhatsApp para enviar el comprobante...")
+    st.success("Redirigiendo a WhatsApp para enviar el comprobante...")
 
 
-# --- FUNCIÓN DEL CARRITO REESTRUCTURADO (INLINE / NO SE CIERRA) ---
-def renderizar_carrito_integrado():
-    st.markdown("### 🛒 Carrito de Compras")
+# --- VENTANA EMERGENTE (MODAL QUE NO SE CIERRA AL BORRAR) ---
+@st.dialog("🛒 Carrito de Compras")
+def mostrar_modal_carrito():
     df_inv_local = st.session_state["df_inv"]
 
     if not st.session_state["carrito"]:
         st.info("El carrito está vacío. Agrega productos desde la sección de Combos o el Catálogo.")
+        if st.button("Cerrar Ventana", use_container_width=True):
+            st.session_state["abrir_carrito"] = False
+            st.rerun()
         return
 
     subtotal = 0.0
     st.write("---")
     
-    # Renderizado e interacción del carrito sin cerrarse
+    # Renderizado de ítems
     for i, item in enumerate(list(st.session_state["carrito"])):
         tot_item = item["cantidad"] * item["precio"]
         subtotal += tot_item
@@ -171,9 +176,10 @@ def renderizar_carrito_integrado():
         c2.write(f"x{item['cantidad']}")
         c3.write(f"${tot_item:,.2f}")
         
-        # Al presionar ❌ elimina y actualiza sin cerrar el panel
+        # Al hacer clic en ❌ borra el ítem y mantiene la ventana abierta
         if c4.button("❌", key=f"del_cart_item_{i}"):
             st.session_state["carrito"].pop(i)
+            st.session_state["abrir_carrito"] = True
             st.rerun()
 
     st.write("---")
@@ -228,6 +234,7 @@ def renderizar_carrito_integrado():
             st.session_state["df_ventas"] = df_v_act
             st.session_state["ultima_venta"] = nueva_v_dict
             st.session_state["carrito"] = []
+            st.session_state["abrir_carrito"] = False
 
             num_dest = NUMEROS_WHATSAPP[destino_recibo]
             st.session_state["redirect_url"] = generar_link_whatsapp(num_dest, nueva_v_dict)
@@ -247,7 +254,7 @@ with tab_venta:
     if df_inv.empty:
         st.info("📦 No hay productos registrados en el inventario.")
     else:
-        # 1. Sección de Combos
+        # 1. Promoción: Armar Combo
         st.markdown("### 🎁 Promoción: Armar Combo (Cama + Colchón)")
         
         camas_disponibles = df_inv[
@@ -278,12 +285,14 @@ with tab_venta:
 
         st.markdown("---")
 
-        # 2. Carrito Desplegable que Permanece Abierto al Borrar
+        # 2. Botón principal para abrir la ventana emergente modal
         cant_items_cart = sum([item['cantidad'] for item in st.session_state["carrito"]])
-        esta_abierto = True if cant_items_cart > 0 else False
-        
-        with st.expander(f"🛒 VER Y EDITAR CARRITO DE COMPRAS ({cant_items_cart} productos)", expanded=esta_abierto):
-            renderizar_carrito_integrado()
+        if st.button(f"🛒 VER Y EDITAR CARRITO DE COMPRAS ({cant_items_cart} productos)", type="primary", use_container_width=True):
+            st.session_state["abrir_carrito"] = True
+
+        # Renderizado del modal si se activa
+        if st.session_state["abrir_carrito"]:
+            mostrar_modal_carrito()
 
         st.markdown("---")
 
@@ -319,7 +328,7 @@ with tab_venta:
                                     item["cantidad"] += 1
                                     encontrado = True
                                 break
-                        if not encon_trado if 'encon_trado' in locals() else not encontrado:
+                        if not encontrado:
                             st.session_state["carrito"].append({
                                 "producto": row['CATEGORIA'],
                                 "cantidad": 1,
