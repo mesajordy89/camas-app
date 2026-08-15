@@ -242,8 +242,7 @@ with tab_venta:
                 
                 # BOTÓN AÑADIR MÁS PRODUCTOS
                 if st.button("➕ Añadir más productos (Ir al Catálogo)", use_container_width=True):
-                    st.markdown('<script>window.scrollTo(0, document.body.scrollHeight);</script>', unsafe_allow_html=True)
-                    st.toast("👇 Selecciona productos en el catálogo de abajo")
+                    st.toast("👇 Selecciona más productos en el catálogo de abajo")
 
                 st.write("")
                 descuento = st.number_input("🏷️ Descuento General ($)", min_value=0.0, max_value=float(subtotal), value=0.0, key="desc_general")
@@ -309,7 +308,7 @@ with tab_venta:
         st.markdown("---")
 
         # 4. CATÁLOGO DE PRODUCTOS ABAJO
-        st.markdown("<h3 id='catalogo-section'>🛍️ Catálogo de Productos</h3>", unsafe_allow_html=True)
+        st.markdown("### 🛍️ Catálogo de Productos")
         
         cols_grid = st.columns(3)
         vendibles = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))].copy()
@@ -340,7 +339,7 @@ with tab_venta:
                                     item["cantidad"] += 1
                                     encontrado = True
                                 break
-                        if not encon:
+                        if not encontrado:
                             st.session_state["carrito"].append({
                                 "producto": row['CATEGORIA'],
                                 "cantidad": 1,
