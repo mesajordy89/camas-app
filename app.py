@@ -6,7 +6,7 @@ import urllib.parse
 import pandas as pd
 import streamlit as st
 
-# Cargar reportlab para los comprobantes PDF de manera segura
+# Cargar reportlab para comprobantes PDF
 try:
     from reportlab.lib.pagesizes import letter
     from reportlab.pdfgen import canvas
@@ -32,7 +32,10 @@ FILE_INV = "inventario.csv"
 FILE_VENTAS = "ventas.csv"
 CARPETA_FOTOS = "fotos_ventas"
 
-NUMEROS_WHATSAPP = ["593990847819", "593983576800"]
+NUMEROS_WHATSAPP = {
+    "Vendedor 1 (0990847819)": "593990847819",
+    "Vendedor 2 (0983576800)": "593983576800",
+}
 
 os.makedirs(CARPETA_FOTOS, exist_ok=True)
 
@@ -59,15 +62,10 @@ def normalizar_inventario(df_input):
         return pd.DataFrame(columns=["CATEGORIA", "STOCK", "PRECIO", "STOCK_MINIMO"])
     
     df = df_input.copy()
-    
-    if "CATEGORIA" not in df.columns:
-        df["CATEGORIA"] = ""
-    if "STOCK" not in df.columns:
-        df["STOCK"] = 0
-    if "PRECIO" not in df.columns:
-        df["PRECIO"] = 0.0
-    if "STOCK_MINIMO" not in df.columns:
-        df["STOCK_MINIMO"] = 1
+    if "CATEGORIA" not in df.columns: df["CATEGORIA"] = ""
+    if "STOCK" not in df.columns: df["STOCK"] = 0
+    if "PRECIO" not in df.columns: df["PRECIO"] = 0.0
+    if "STOCK_MINIMO" not in df.columns: df["STOCK_MINIMO"] = 1
 
     df["CATEGORIA"] = df["CATEGORIA"].fillna("").astype(str).str.strip()
     df["STOCK"] = pd.to_numeric(df["STOCK"], errors="coerce").fillna(0).astype(int).clip(lower=0)
@@ -83,18 +81,12 @@ def normalizar_ventas(df_input):
     df = df_input.copy()
     for columna in COLUMNAS_VENTAS:
         if columna not in df.columns:
-            if columna == "ABONADO":
-                df[columna] = pd.to_numeric(df.get("TOTAL", 0), errors="coerce").fillna(0.0)
-            elif columna == "SALDO_PENDIENTE":
-                df[columna] = 0.0
-            elif columna == "ESTADO":
-                df[columna] = "Pagado y Entregado"
-            elif columna == "DIRECCION":
-                df[columna] = "S/N"
-            elif columna == "FOTO":
-                df[columna] = "Sin foto"
-            else:
-                df[columna] = ""
+            if columna == "ABONADO": df[columna] = pd.to_numeric(df.get("TOTAL", 0), errors="coerce").fillna(0.0)
+            elif columna == "SALDO_PENDIENTE": df[columna] = 0.0
+            elif columna == "ESTADO": df[columna] = "Pagado y Entregado"
+            elif columna == "DIRECCION": df[columna] = "S/N"
+            elif columna == "FOTO": df[columna] = "Sin foto"
+            else: df[columna] = ""
 
     for col in ["CANTIDAD", "PRECIO_UNITARIO", "TOTAL", "ABONADO", "SALDO_PENDIENTE"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
@@ -110,10 +102,8 @@ def normalizar_ventas(df_input):
 
 def cargar_inventario():
     if os.path.exists(FILE_INV):
-        try:
-            df = pd.read_csv(FILE_INV, encoding="utf-8-sig")
-        except Exception:
-            df = pd.DataFrame()
+        try: df = pd.read_csv(FILE_INV, encoding="utf-8-sig")
+        except Exception: df = pd.DataFrame()
     else:
         df = pd.DataFrame([
             {"CATEGORIA": "Camas", "STOCK": 5, "PRECIO": 150.0, "STOCK_MINIMO": 2},
@@ -126,19 +116,15 @@ def cargar_inventario():
 
 def cargar_ventas():
     if os.path.exists(FILE_VENTAS):
-        try:
-            df = pd.read_csv(FILE_VENTAS, encoding="utf-8-sig")
-        except Exception:
-            df = pd.DataFrame()
-    else:
-        df = pd.DataFrame()
+        try: df = pd.read_csv(FILE_VENTAS, encoding="utf-8-sig")
+        except Exception: df = pd.DataFrame()
+    else: df = pd.DataFrame()
     df = normalizar_ventas(df)
     guardar_csv(df, FILE_VENTAS)
     return df
 
 def generar_pdf_recibo(venta_dict):
-    if not HAS_REPORTLAB:
-        return None
+    if not HAS_REPORTLAB: return None
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     p.setFont("Helvetica-Bold", 16)
@@ -205,24 +191,19 @@ def producto_es_vendible(df, nombre):
     return not es_categoria_principal(df, nombre)
 
 def obtener_productos_vendibles(df):
-    if df.empty or "CATEGORIA" not in df.columns:
-        return []
+    if df.empty or "CATEGORIA" not in df.columns: return []
     return [nombre for nombre in df["CATEGORIA"].tolist() if producto_es_vendible(df, nombre)]
 
 def existe_producto(df, nombre):
-    if df.empty or "CATEGORIA" not in df.columns:
-        return False
+    if df.empty or "CATEGORIA" not in df.columns: return False
     return nombre.strip().lower() in df["CATEGORIA"].astype(str).str.strip().str.lower().values
 
 # ============================================================
 #                 INICIALIZACIÓN DE SESIÓN
 # ============================================================
 
-if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = False
-
-if "ultima_venta" not in st.session_state:
-    st.session_state["ultima_venta"] = None
+if "autenticado" not in st.session_state: st.session_state["autenticado"] = False
+if "ultima_venta" not in st.session_state: st.session_state["ultima_venta"] = None
 
 st.session_state["df_inv"] = cargar_inventario()
 st.session_state["df_ventas"] = cargar_ventas()
@@ -253,8 +234,7 @@ if not st.session_state["autenticado"]:
             if clave == CLAVE_ACCESO:
                 st.session_state["autenticado"] = True
                 st.rerun()
-            else:
-                st.error("❌ Contraseña incorrecta.")
+            else: st.error("❌ Contraseña incorrecta.")
     st.stop()
 
 # ============================================================
@@ -315,63 +295,43 @@ tab_venta, tab_apartado, tab_inventario, tab_historial = st.tabs([
 ])
 
 # ------------------------------------------------------------
-# TAB 1: VENDER
+# TAB 1: VENDER (AGREGADO FÁCIL Y ENVÍO AUTOMÁTICO)
 # ------------------------------------------------------------
 with tab_venta:
     if df_inv.empty:
         st.info("📦 No hay productos registrados en el inventario.")
     else:
-        st.markdown("### 🛍️ Catálogo de Productos")
+        st.markdown("### 🛍️ Selección Rápida de Productos")
         
-        col_busqueda, col_filtro = st.columns([3, 1])
-        with col_busqueda:
-            busqueda = st.text_input("🔍 Buscar producto en el catálogo...", "", key="search_catalog")
-        with col_filtro:
-            filtro_stock = st.selectbox("Filtrar por", ["Todos", "En Stock", "Agotados"])
-
+        cols_grid = st.columns(3)
         vendibles = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))].copy()
 
-        if busqueda.strip():
-            vendibles = vendibles[vendibles["CATEGORIA"].str.contains(busqueda, case=False, na=False)]
-        
-        if filtro_stock == "En Stock":
-            vendibles = vendibles[vendibles["STOCK"] > 0]
-        elif filtro_stock == "Agotados":
-            vendibles = vendibles[vendibles["STOCK"] <= 0]
+        for i, (_, row) in enumerate(vendibles.iterrows()):
+            stk = int(row['STOCK'])
+            stk_min = int(row['STOCK_MINIMO'])
+            
+            if stk <= 0: badge_class, badge_text = "badge-out", "Agotado"
+            elif stk <= stk_min: badge_class, badge_text = "badge-low", f"Últimas {stk} uds"
+            else: badge_class, badge_text = "badge-ok", f"Stock: {stk} uds"
 
-        if vendibles.empty:
-            st.warning("🔍 No se encontraron productos con el filtro aplicado.")
-        else:
-            cols_grid = st.columns(3)
-            for i, (_, row) in enumerate(vendibles.iterrows()):
-                stk = int(row['STOCK'])
-                stk_min = int(row['STOCK_MINIMO'])
+            with cols_grid[i % 3]:
+                st.markdown(f"""
+                <div class="prod-card-v2">
+                    <span class="card-badge {badge_class}">{badge_text}</span>
+                    <div class="prod-title">🛏️ {row['CATEGORIA']}</div>
+                    <div class="prod-price">${row['PRECIO']:,.2f}</div>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                if stk <= 0:
-                    badge_class, badge_text = "badge-out", "Agotado"
-                elif stk <= stk_min:
-                    badge_class, badge_text = "badge-low", f"Últimas {stk} uds"
+                if stk > 0:
+                    if st.button(f"⚡ Cargar para Venta", key=f"btn_quick_add_{i}", use_container_width=True):
+                        st.session_state["sel_venta_prod"] = row['CATEGORIA']
+                        st.rerun()
                 else:
-                    badge_class, badge_text = "badge-ok", f"Stock: {stk} uds"
-
-                with cols_grid[i % 3]:
-                    st.markdown(f"""
-                    <div class="prod-card-v2">
-                        <span class="card-badge {badge_class}">{badge_text}</span>
-                        <div class="prod-title">🛏️ {row['CATEGORIA']}</div>
-                        <div class="prod-price">${row['PRECIO']:,.2f}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    if stk > 0:
-                        if st.button(f"🛒 Seleccionar", key=f"btn_select_{i}", use_container_width=True):
-                            st.session_state["sel_venta_prod"] = row['CATEGORIA']
-                            st.rerun()
-                    else:
-                        st.button("❌ Sin Stock", key=f"btn_select_dis_{i}", disabled=True, use_container_width=True)
+                    st.button("❌ Sin Stock", key=f"btn_select_dis_{i}", disabled=True, use_container_width=True)
 
         st.markdown("---")
-        st.markdown("### 📦 Procesar Venta Directa")
+        st.markdown("### ⚡ Búsqueda Rápida y Procesamiento de Venta")
         
         lista_productos = obtener_productos_vendibles(df_inv)
         OPCION_COMBO = "🎁 Combo (Cama + Colchón)"
@@ -381,7 +341,14 @@ with tab_venta:
         if "sel_venta_prod" in st.session_state and st.session_state["sel_venta_prod"] in opciones_venta:
             idx_default = opciones_venta.index(st.session_state["sel_venta_prod"])
 
-        producto_elegido = st.selectbox("👉 Producto seleccionado para la venta", opciones_venta, index=idx_default, key="sel_venta_prod_main")
+        # BUSCADOR AUTOCOMPLETABLE
+        producto_elegido = st.selectbox(
+            "🔍 Escribe o selecciona el producto:",
+            opciones_venta,
+            index=idx_default,
+            key="sel_venta_prod_main",
+            help="Escribe las primeras letras para filtrar al instante"
+        )
         es_combo = (producto_elegido == OPCION_COMBO)
 
         if es_combo:
@@ -424,10 +391,15 @@ with tab_venta:
                     c_tel = st.text_input("📞 Teléfono", value="")
                     c_dir = st.text_input("📍 Dirección Entrega", value="")
 
+                    destino_recibo = st.selectbox(
+                        "📲 Enviar Recibo por WhatsApp (Obligatorio)",
+                        ["Vendedor 1 (0990847819)", "Vendedor 2 (0983576800)"]
+                    )
+
                     total_final = max(0.0, (cantidad * precio_unitario) - descuento)
                     st.markdown(f'<div class="total-card">TOTAL A COBRAR: ${total_final:,.2f}</div>', unsafe_allow_html=True)
 
-                    if st.form_submit_button("💰 COMPLETAR VENTA", use_container_width=True):
+                    if st.form_submit_button("💰 COMPLETAR VENTA Y ENVIAR RECIBO", use_container_width=True):
                         if es_combo:
                             df_inv.loc[df_inv["CATEGORIA"] == cama_combo, "STOCK"] -= 1
                             df_inv.loc[df_inv["CATEGORIA"] == colchon_combo, "STOCK"] -= 1
@@ -451,22 +423,33 @@ with tab_venta:
                         st.session_state["df_ventas"] = df_v_actualizado
                         st.session_state["ultima_venta"] = nueva_v_dict
 
-                        st.success("✅ ¡Venta efectuada con éxito!")
+                        num_dest = NUMEROS_WHATSAPP[destino_recibo]
+                        link_wa = generar_link_whatsapp(num_dest, nueva_v_dict)
+                        
+                        st.session_state["redirect_url"] = link_wa
                         st.rerun()
 
-        if st.session_state.get("ultima_venta"):
+        if "redirect_url" in st.session_state and st.session_state["redirect_url"]:
+            link_red = st.session_state["redirect_url"]
+            st.session_state["redirect_url"] = None
+            
+            st.markdown(f'<meta http-equiv="refresh" content="0; url={link_red}">', unsafe_allow_html=True)
+            st.success("✅ Venta procesada correctamente. Redirigiendo a WhatsApp...")
+            st.markdown(f'<a href="{link_red}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-weight:bold; cursor:pointer;">📲 SI NO SE ABRE AUTOMÁTICAMENTE, HAZ CLIC AQUÍ</button></a>', unsafe_allow_html=True)
+
+        if st.session_state.get("ultima_venta") and not st.session_state.get("redirect_url"):
             st.markdown("---")
-            st.markdown("### 📄 Opciones de Recibo y Envío")
+            st.markdown("### 📄 Opciones de Recibo y Envío Manual")
             v_ult = st.session_state["ultima_venta"]
 
             c_w1, c_w2 = st.columns(2)
             with c_w1:
                 link_w1 = generar_link_whatsapp("593990847819", v_ult)
-                st.markdown(f'<a href="{link_w1}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:12px; border-radius:10px; font-weight:bold; cursor:pointer;">📲 ENVIAR RECIBO A 0990847819</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link_w1}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:12px; border-radius:10px; font-weight:bold; cursor:pointer;">📲 REENVIAR A 0990847819</button></a>', unsafe_allow_html=True)
 
             with c_w2:
                 link_w2 = generar_link_whatsapp("593983576800", v_ult)
-                st.markdown(f'<a href="{link_w2}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:12px; border-radius:10px; font-weight:bold; cursor:pointer;">📲 ENVIAR RECIBO A 0983576800</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link_w2}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:12px; border-radius:10px; font-weight:bold; cursor:pointer;">📲 REENVIAR A 0983576800</button></a>', unsafe_allow_html=True)
 
             if HAS_REPORTLAB:
                 pdf_buf = generar_pdf_recibo(v_ult)
@@ -562,7 +545,7 @@ with tab_apartado:
                 st.rerun()
 
 # ------------------------------------------------------------
-# TAB 3: INVENTARIO
+# TAB 3: INVENTARIO (CREACIÓN Y EDICIÓN RÁPIDA)
 # ------------------------------------------------------------
 with tab_inventario:
     st.markdown("### 🛠️ Gestión y Reabastecimiento de Inventario")
