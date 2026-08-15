@@ -475,13 +475,44 @@ with tab_apartados:
 
 
 # ============================================================
-#        TAB 3: INVENTARIO (EDICIÓN EXCLUSIVA ADMINISTRADOR)
+#        TAB 3: INVENTARIO (EDICIÓN FÁCIL Y RÁPIDA)
 # ============================================================
 with tab_inv:
     st.markdown("### 📦 Control de Inventario")
 
     if st.session_state.get("admin_autenticado", False):
-        st.success("🔓 Modo Administrador activo: Puedes hacer doble clic sobre cualquier celda para modificar stock o precios.")
+        st.success("🔓 Modo Administrador Activo")
+        
+        # 1. MODIFICACIÓN RÁPIDA POR PRODUCTO
+        st.subheader("⚡ Modificación Rápida de Stock y Precios")
+        
+        prods_lista = st.session_state["df_inv"]["CATEGORIA"].tolist()
+        
+        if prods_lista:
+            col_sel, col_stk, col_prc, col_btn = st.columns([3, 2, 2, 2])
+            
+            prod_sel = col_sel.selectbox("Selecciona un producto a modificar:", prods_lista, key="quick_prod_sel")
+            
+            fila_actual = st.session_state["df_inv"][st.session_state["df_inv"]["CATEGORIA"] == prod_sel].iloc[0]
+            stk_actual = int(fila_actual.get("STOCK", 0)) if pd.notnull(fila_actual.get("STOCK")) else 0
+            precio_actual = float(fila_actual.get("PRECIO", 0.0)) if pd.notnull(fila_actual.get("PRECIO")) else 0.0
+            
+            nuevo_stk = col_stk.number_input("📦 Stock Actual", min_value=0, value=stk_actual, key="quick_stk")
+            nuevo_prc = col_prc.number_input("💵 Precio Venta ($)", min_value=0.0, value=precio_actual, step=5.0, key="quick_prc")
+            
+            st.write("")
+            if col_btn.button("💾 Actualizar Producto", type="primary", use_container_width=True):
+                st.session_state["df_inv"].loc[st.session_state["df_inv"]["CATEGORIA"] == prod_sel, "STOCK"] = nuevo_stk
+                st.session_state["df_inv"].loc[st.session_state["df_inv"]["CATEGORIA"] == prod_sel, "PRECIO"] = nuevo_prc
+                guardar_csv(st.session_state["df_inv"], FILE_INV)
+                st.success(f"✅ ¡{prod_sel} actualizado correctamente!")
+                st.rerun()
+
+        st.divider()
+
+        # 2. VISTA GENERAL EDITABLE EN TABLA
+        st.subheader("📋 Vista General del Inventario")
+        st.caption("También puedes hacer doble clic en celdas individuales para cambiar datos:")
         
         df_editado = st.data_editor(
             st.session_state["df_inv"],
@@ -491,10 +522,10 @@ with tab_inv:
         )
         
         col_b1, col_b2 = st.columns([1, 4])
-        if col_b1.button("💾 Guardar Cambios", type="primary"):
+        if col_b1.button("💾 Guardar Cambios de la Tabla", type="secondary"):
             guardar_csv(df_editado, FILE_INV)
             st.session_state["df_inv"] = df_editado
-            st.success("✅ ¡Inventario actualizado correctamente!")
+            st.success("✅ ¡Tabla guardada con éxito!")
             st.rerun()
 
         if col_b2.button("🚪 Cerrar Sesión Admin"):
@@ -503,19 +534,23 @@ with tab_inv:
 
         st.divider()
 
-        with st.expander("➕ Registrar Nuevo Producto / Categoría"):
-            with st.form("form_nuevo_inv"):
-                col_i1, col_i2 = st.columns(2)
-                p_cat = col_i1.text_input("🏷️ Categoría / Producto")
-                es_titulo = col_i2.selectbox("📌 ¿Es solo un Título/Categoría?", ["NO", "SI"])
+        # 3. REGISTRO FÁCIL DE NUEVO PRODUCTO
+        with st.expander("➕ Registrar Nuevo Producto / Categoría", expanded=False):
+            with st.form("form_nuevo_inv_facil"):
+                st.write("##### Datos del Nuevo Producto")
+                c_f1, c_f2 = st.columns(2)
+                p_cat = c_f1.text_input("🏷️ Nombre del Producto o Categoría", placeholder="Ej: CAMA TAPIZADA 2PLZ")
+                es_titulo = c_f2.selectbox("📌 ¿Es solo un título/sección?", ["NO", "SI"])
+                
                 titulos_padre = df_inv[df_inv["ES_TITULO"].astype(str).str.upper().isin(["SI", "SÍ", "TRUE", "1"])]["CATEGORIA"].tolist()
-                padre_sel = col_i1.selectbox("📂 Categoría Padre", ["Ninguno"] + titulos_padre)
-                p_stock = col_i2.number_input("📦 Stock Inicial", min_value=0, value=10)
-                p_min = col_i1.number_input("⚠️ Stock Mínimo", min_value=0, value=2)
-                p_precio = col_i2.number_input("💵 Precio Venta ($)", min_value=0.0)
-                p_costo = col_i1.number_input("💲 Costo ($)", min_value=0.0)
+                padre_sel = c_f1.selectbox("📂 Asignar a Categoría Padre", ["Ninguno"] + titulos_padre)
+                
+                c_f3, c_f4, c_f5 = st.columns(3)
+                p_stock = c_f3.number_input("📦 Stock Inicial", min_value=0, value=1)
+                p_min = c_f4.number_input("⚠️ Stock Mínimo (Alerta)", min_value=0, value=1)
+                p_precio = c_f5.number_input("💵 Precio Venta ($)", min_value=0.0, value=0.0, step=5.0)
 
-                if st.form_submit_button("💾 Guardar Nuevo Producto", use_container_width=True):
+                if st.form_submit_button("➕ Crear Producto", use_container_width=True, type="primary"):
                     if p_cat:
                         nombre_final = f"{padre_sel} - {p_cat}" if padre_sel != "Ninguno" and es_titulo == "NO" else p_cat
                         nuevo_p = {
@@ -523,7 +558,7 @@ with tab_inv:
                             "STOCK": p_stock,
                             "STOCK_MINIMO": p_min,
                             "PRECIO": p_precio,
-                            "COSTO": p_costo,
+                            "COSTO": 0.0,
                             "MEDIDA": "Standard",
                             "CAMA_BASE": "NO",
                             "COLCHON_BASE": "NO",
@@ -533,11 +568,13 @@ with tab_inv:
                         df_inv_act = pd.concat([st.session_state["df_inv"], pd.DataFrame([nuevo_p])], ignore_index=True)
                         guardar_csv(df_inv_act, FILE_INV)
                         st.session_state["df_inv"] = df_inv_act
-                        st.success("✅ Producto agregado")
+                        st.success(f"✅ ¡Producto '{nombre_final}' guardado!")
                         st.rerun()
+                    else:
+                        st.error("❌ Por favor ingresa el nombre del producto.")
 
     else:
-        st.info("👁️ Vista de Empleado (Solo lectura). Para editar valores o precios, ingresa la contraseña de administrador.")
+        st.info("👁️ Vista de Empleado (Solo lectura). Para modificar stock o precios, ingresa la clave de administrador.")
         st.dataframe(st.session_state["df_inv"], use_container_width=True)
         
         with st.expander("🔑 Acceso Administrador para Editar Inventario"):
