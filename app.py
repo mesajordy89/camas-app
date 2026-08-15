@@ -185,6 +185,8 @@ if "carrito" not in st.session_state:
     st.session_state["carrito"] = []
 if "redirect_url" not in st.session_state:
     st.session_state["redirect_url"] = None
+if "abrir_dialogo" not in st.session_state:
+    st.session_state["abrir_dialogo"] = False
 
 for col in COLS_INV:
     if col not in st.session_state["df_inv"].columns:
@@ -204,6 +206,9 @@ if st.session_state["redirect_url"]:
 def abrir_modal_carrito():
     if not st.session_state["carrito"]:
         st.info("El carrito de compras está vacío actualmente.")
+        if st.button("⬅️ Volver al catálogo", use_container_width=True):
+            st.session_state["abrir_dialogo"] = False
+            st.rerun()
         return
 
     subtotal = 0.0
@@ -222,8 +227,9 @@ def abrir_modal_carrito():
 
     st.divider()
 
-    # BOTÓN PARA VOLVER Y SELECCIONAR MÁS PRODUCTOS
+    # BOTÓN PARA CERRAR EL MODAL Y SELECCIONAR MÁS PRODUCTOS
     if st.button("➕ Agregar más productos del catálogo", use_container_width=True):
+        st.session_state["abrir_dialogo"] = False
         st.rerun()
 
     st.write("")
@@ -274,10 +280,16 @@ def abrir_modal_carrito():
             guardar_csv(df_v_act, FILE_VENTAS)
             st.session_state["df_ventas"] = df_v_act
             st.session_state["carrito"] = []
+            st.session_state["abrir_dialogo"] = False
             
             num_dest = NUMEROS_WHATSAPP[destino_recibo]
             st.session_state["redirect_url"] = generar_link_whatsapp(num_dest, nueva_v_dict)
             st.rerun()
+
+
+# --- ACTIVAR MODAL SI CORRESPONDE ---
+if st.session_state["abrir_dialogo"]:
+    abrir_modal_carrito()
 
 
 # --- INTERFAZ PRINCIPAL ---
@@ -295,7 +307,8 @@ with tab_venta:
     
     cant_items = sum([it['cantidad'] for it in st.session_state["carrito"]])
     if col_hdr2.button(f"🛒 Ver Carrito ({cant_items})", type="primary", use_container_width=True):
-        abrir_modal_carrito()
+        st.session_state["abrir_dialogo"] = True
+        st.rerun()
 
     if df_inv.empty:
         st.info("📦 No hay productos registrados en el inventario.")
@@ -321,8 +334,8 @@ with tab_venta:
                 if cb4.button("⚡ Añadir Combo", type="primary", use_container_width=True):
                     st.session_state["carrito"].append({"producto": sel_c, "cantidad": 1, "precio": round(p_combo * 0.5, 2)})
                     st.session_state["carrito"].append({"producto": sel_m, "cantidad": 1, "precio": round(p_combo * 0.5, 2)})
-                    # ABRE EL MODAL DIRECTAMENTE AL AÑADIR
-                    abrir_modal_carrito()
+                    st.session_state["abrir_dialogo"] = True
+                    st.rerun()
 
         st.divider()
 
@@ -373,14 +386,14 @@ with tab_venta:
                                     item["cantidad"] += 1
                                     encontrado = True
                                 break
-                        if not encon:
+                        if not encontrado:
                             st.session_state["carrito"].append({
                                 "producto": row['CATEGORIA'],
                                 "cantidad": 1,
                                 "precio": float(row['PRECIO'])
                             })
-                        # ABRE EL MODAL DIRECTAMENTE AL AGREGAR
-                        abrir_modal_carrito()
+                        st.session_state["abrir_dialogo"] = True
+                        st.rerun()
                 else:
                     st.button("Agotado", key=f"dis_{idx}", disabled=True, use_container_width=True)
 
