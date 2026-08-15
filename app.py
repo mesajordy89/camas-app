@@ -106,9 +106,8 @@ def cargar_inventario():
         except Exception: df = pd.DataFrame()
     else:
         df = pd.DataFrame([
-            {"CATEGORIA": "Camas", "STOCK": 5, "PRECIO": 150.0, "STOCK_MINIMO": 2},
-            {"CATEGORIA": "Colchones", "STOCK": 5, "PRECIO": 100.0, "STOCK_MINIMO": 2},
-            {"CATEGORIA": "Armarios Grandes", "STOCK": 2, "PRECIO": 200.0, "STOCK_MINIMO": 1},
+            {"CATEGORIA": "CAMAS - CAMA TAPIZADA DE LUCES 2PLZ", "STOCK": 5, "PRECIO": 150.0, "STOCK_MINIMO": 2},
+            {"CATEGORIA": "COLCHONES - COLCHON SUEÑO TOTAL 2PLZS", "STOCK": 5, "PRECIO": 100.0, "STOCK_MINIMO": 2},
         ])
     df = normalizar_inventario(df)
     guardar_csv(df, FILE_INV)
@@ -197,6 +196,27 @@ def obtener_productos_vendibles(df):
 def existe_producto(df, nombre):
     if df.empty or "CATEGORIA" not in df.columns: return False
     return nombre.strip().lower() in df["CATEGORIA"].astype(str).str.strip().str.lower().values
+
+def agregar_combo_al_carrito(cama_nombre, colchon_nombre, precio_combo):
+    df_inv_local = st.session_state["df_inv"]
+    stk_cama = int(df_inv_local[df_inv_local["CATEGORIA"] == cama_nombre]["STOCK"].values[0]) if cama_nombre in df_inv_local["CATEGORIA"].values else 0
+    stk_colchon = int(df_inv_local[df_inv_local["CATEGORIA"] == colchon_nombre]["STOCK"].values[0]) if colchon_nombre in df_inv_local["CATEGORIA"].values else 0
+
+    if stk_cama < 1 or stk_colchon < 1:
+        st.error("❌ No hay suficiente stock disponible de uno de los productos para armar el combo.")
+        return False
+
+    st.session_state["carrito"].append({
+        "producto": cama_nombre,
+        "cantidad": 1,
+        "precio": float(precio_combo / 2)
+    })
+    st.session_state["carrito"].append({
+        "producto": colchon_nombre,
+        "cantidad": 1,
+        "precio": float(precio_combo / 2)
+    })
+    return True
 
 # ============================================================
 #                 INICIALIZACIÓN DE SESIÓN
@@ -298,7 +318,6 @@ def abrir_modal_venta():
     df_inv_local = st.session_state["df_inv"]
     lista_prods = obtener_productos_vendibles(df_inv_local)
 
-    # Formulario rápido para agregar al carrito
     col_add1, col_add2, col_add3 = st.columns([3, 1, 1])
     prod_sel = col_add1.selectbox("Producto", lista_prods, key="modal_sel_prod")
     
@@ -316,7 +335,6 @@ def abrir_modal_venta():
         if stk_max <= 0:
             st.error("Producto agotado.")
         else:
-            # Revisar si ya está en el carrito
             encontrado = False
             for item in st.session_state["carrito"]:
                 if item["producto"] == prod_sel:
@@ -354,7 +372,7 @@ def abrir_modal_venta():
                 st.rerun()
 
         st.markdown("---")
-        descuento = st.number_input("🏷️ Descuento General ($)", min_value=0.0, max_value=10.0, value=0.0)
+        descuento = st.number_input("🏷️ Descuento General ($)", min_value=0.0, max_value=100.0, value=0.0)
         total_final = max(0.0, subtotal - descuento)
         st.markdown(f'<div class="total-card">TOTAL A PAGAR: ${total_final:,.2f}</div>', unsafe_allow_html=True)
 
@@ -371,14 +389,12 @@ def abrir_modal_venta():
             )
 
             if st.form_submit_button("💰 FINALIZAR VENTA Y RECIBO", use_container_width=True):
-                # Descontar stock
                 for item in st.session_state["carrito"]:
                     df_inv_local.loc[df_inv_local["CATEGORIA"] == item["producto"], "STOCK"] -= item["cantidad"]
                 
                 guardar_csv(df_inv_local, FILE_INV)
                 st.session_state["df_inv"] = df_inv_local
 
-                # Construir detalle
                 resumen_prods = " + ".join([f"{it['producto']} (x{it['cantidad']})" for it in st.session_state["carrito"]])
                 cant_total = sum([it['cantidad'] for it in st.session_state["carrito"]])
 
@@ -425,6 +441,44 @@ with tab_venta:
     if df_inv.empty:
         st.info("📦 No hay productos registrados en el inventario.")
     else:
+        st.markdown("### 🎁 Promoción: Armar Combo (Cama + Colchón)")
+        
+        camas_disponibles = df_inv[
+            df_inv["CATEGORIA"].str.contains("CAMA", case=False, na=False) & (df_inv["STOCK"] > 0)
+        ]["CATEGORIA"].tolist()
+        
+        colchones_disponibles = df_inv[
+            df_inv["CATEGORIA"].str.contains("COLCHON|COLCHÓN", case=False, na=False) & (df_inv["STOCK"] > 0)
+        ]["CATEGORIA"].tolist()
+
+        if camas_disponibles and colchones_disponibles:
+            html("""
+            <div style="background: linear-gradient(135deg, #1e1b4b, #312e81); padding: 20px; border-radius: 18px; color: white; margin-bottom: 20px; border: 1px solid #6366f1;">
+                <h4 style="margin:0; color:#a5b4fc;">🔥 Arma tu Combo Especial</h4>
+                <p style="margin:5px 0 0 0; font-size:14px; color:#c7d2fe;">Selecciona una Cama y un Colchón. Al comprarlos, se descontará automático 1 unidad de stock a cada uno.</p>
+            </div>
+            """)
+
+            c_combo1, c_combo2, c_combo3, c_combo4 = st.columns([3, 3, 2, 2])
+            
+            sel_cama = c_combo1.selectbox("🛏️ Seleccionar Cama", camas_disponibles, key="combo_cama_sel")
+            sel_colchon = c_combo2.selectbox("💤 Seleccionar Colchón", colchones_disponibles, key="combo_colchon_sel")
+
+            prc_c = float(df_inv[df_inv["CATEGORIA"] == sel_cama]["PRECIO"].values[0]) if sel_cama else 0.0
+            prc_m = float(df_inv[df_inv["CATEGORIA"] == sel_colchon]["PRECIO"].values[0]) if sel_colchon else 0.0
+            precio_sugerido = prc_c + prc_m
+
+            precio_combo = c_combo3.number_input("💵 Precio Combo ($)", min_value=0.0, value=precio_sugerido, key="combo_precio_input")
+
+            st.write("")
+            if c_combo4.button("⚡ AGREGAR COMBO", use_container_width=True, type="primary"):
+                if agregar_combo_al_carrito(sel_cama, sel_colchon, precio_combo):
+                    st.success(f"✅ Combo agregado al carrito: {sel_cama} + {sel_colchon}")
+                    abrir_modal_venta()
+        else:
+            st.warning("⚠️ Se requiere tener disponible al menos 1 Cama y 1 Colchón en stock para habilitar la creación de combos.")
+
+        st.markdown("---")
         st.markdown("### 🛍️ Catálogo de Productos")
         
         cols_grid = st.columns(3)
@@ -449,7 +503,6 @@ with tab_venta:
                 
                 if stk > 0:
                     if st.button(f"🛒 Agregar al Carrito", key=f"btn_add_cart_{i}", use_container_width=True):
-                        # Agregar de una vez al carrito
                         encontrado = False
                         for item in st.session_state["carrito"]:
                             if item["producto"] == row['CATEGORIA']:
@@ -469,7 +522,6 @@ with tab_venta:
 
         st.markdown("---")
         
-        # BOTÓN PRINCIPAL VER CARRITO / COMPRAR
         cant_items_cart = sum([item['cantidad'] for item in st.session_state["carrito"]])
         if st.button(f"🛒 VER CARRITO DE COMPRAS ({cant_items_cart} productos)", use_container_width=True, type="primary"):
             abrir_modal_venta()
@@ -607,7 +659,7 @@ with tab_inventario:
         opc = st.selectbox("Acción / Categoría Padre", opciones)
 
         if opc == "✨ Crear Repositorio Principal":
-            nom = st.text_input("Nombre de la Categoría Principal (Ej: Camas)")
+            nom = st.text_input("Nombre de la Categoría Principal (Ej: CAMAS)")
             if st.button("➕ CREAR REPOSITORIO"):
                 if nom.strip() and not existe_producto(df_inv, nom.strip()):
                     nuevo_df = pd.DataFrame([{"CATEGORIA": nom.strip(), "STOCK": 0, "PRECIO": 0.0, "STOCK_MINIMO": 1}])
