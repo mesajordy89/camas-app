@@ -137,8 +137,8 @@ if "carrito" not in st.session_state:
     st.session_state["carrito"] = []
 if "redirect_url" not in st.session_state:
     st.session_state["redirect_url"] = None
-if "abrir_carrito" not in st.session_state:
-    st.session_state["abrir_carrito"] = False
+if "abrir_modal_carrito" not in st.session_state:
+    st.session_state["abrir_modal_carrito"] = False
 
 df_inv = st.session_state["df_inv"]
 df_ventas = st.session_state["df_ventas"]
@@ -152,15 +152,15 @@ if st.session_state["redirect_url"]:
     st.success("Redirigiendo a WhatsApp para enviar el comprobante...")
 
 
-# --- VENTANA EMERGENTE (MODAL QUE NO SE CIERRA AL BORRAR) ---
+# --- VENTANA EMERGENTE MODAL ---
 @st.dialog("🛒 Carrito de Compras")
-def mostrar_modal_carrito():
+def modal_carrito():
     df_inv_local = st.session_state["df_inv"]
 
     if not st.session_state["carrito"]:
         st.info("El carrito está vacío. Agrega productos desde la sección de Combos o el Catálogo.")
         if st.button("Cerrar Ventana", use_container_width=True):
-            st.session_state["abrir_carrito"] = False
+            st.session_state["abrir_modal_carrito"] = False
             st.rerun()
         return
 
@@ -176,10 +176,10 @@ def mostrar_modal_carrito():
         c2.write(f"x{item['cantidad']}")
         c3.write(f"${tot_item:,.2f}")
         
-        # Al hacer clic en ❌ borra el ítem y mantiene la ventana abierta
+        # Eliminar ítem manteniendo el estado del modal en True
         if c4.button("❌", key=f"del_cart_item_{i}"):
             st.session_state["carrito"].pop(i)
-            st.session_state["abrir_carrito"] = True
+            st.session_state["abrir_modal_carrito"] = True
             st.rerun()
 
     st.write("---")
@@ -234,11 +234,16 @@ def mostrar_modal_carrito():
             st.session_state["df_ventas"] = df_v_act
             st.session_state["ultima_venta"] = nueva_v_dict
             st.session_state["carrito"] = []
-            st.session_state["abrir_carrito"] = False
+            st.session_state["abrir_modal_carrito"] = False
 
             num_dest = NUMEROS_WHATSAPP[destino_recibo]
             st.session_state["redirect_url"] = generar_link_whatsapp(num_dest, nueva_v_dict)
             st.rerun()
+
+
+# --- ACTIVACIÓN PERSISTENTE DE LA VENTANA EMERGENTE ---
+if st.session_state["abrir_modal_carrito"]:
+    modal_carrito()
 
 
 # --- INTERFAZ PRINCIPAL CON PESTAÑAS ---
@@ -285,14 +290,11 @@ with tab_venta:
 
         st.markdown("---")
 
-        # 2. Botón principal para abrir la ventana emergente modal
+        # 2. Botón principal para abrir la ventana emergente
         cant_items_cart = sum([item['cantidad'] for item in st.session_state["carrito"]])
         if st.button(f"🛒 VER Y EDITAR CARRITO DE COMPRAS ({cant_items_cart} productos)", type="primary", use_container_width=True):
-            st.session_state["abrir_carrito"] = True
-
-        # Renderizado del modal si se activa
-        if st.session_state["abrir_carrito"]:
-            mostrar_modal_carrito()
+            st.session_state["abrir_modal_carrito"] = True
+            st.rerun()
 
         st.markdown("---")
 
