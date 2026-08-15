@@ -1558,8 +1558,17 @@ with tab_venta:
                 stock_colchon = int(fila_colchon["STOCK"])
                 st.caption(f"Stock disponible de Colchón: **{stock_colchon}**")
 
-            precio_sugerido_combo = float(fila_cama["PRECIO"]) + float(fila_colchon["PRECIO"])
-            
+            sugerido = float(fila_cama["PRECIO"]) + float(fila_colchon["PRECIO"])
+
+            precio_combo = st.number_input(
+                "🏷️ Precio especial del Combo ($)",
+                min_value=0.0,
+                value=sugerido,
+                step=5.0,
+                key="precio_combo_input",
+                help="Puede ajustar el precio de oferta del combo si aplica un valor diferente a la suma."
+            )
+
             html(
                 f"""
                 <div style="
@@ -1574,14 +1583,15 @@ with tab_venta:
                     </div>
                     <div style="font-size:17px; margin-top:8px;">
                         • Cama: <b>{cama_combo}</b> (Stock: {stock_cama})<br>
-                        • Colchón: <b>{colchon_combo}</b> (Stock: {stock_colchon})
+                        • Colchón: <b>{colchon_combo}</b> (Stock: {stock_colchon})<br>
+                        • Precio especial: <b>${precio_combo:,.2f}</b>
                     </div>
                 </div>
                 """
             )
 
             stock_disponible = min(stock_cama, stock_colchon)
-            precio_producto = precio_sugerido_combo
+            precio_producto = precio_combo
             nombre_producto_visible = f"Combo ({cama_combo} + {colchon_combo})"
 
         else:
@@ -1886,7 +1896,6 @@ with tab_venta:
                         )
 
                         if es_combo:
-                            # Descontar 1 cama y 1 colchón
                             idx_cama = df_inv[df_inv["CATEGORIA"] == cama_combo].index[0]
                             idx_colchon = df_inv[df_inv["CATEGORIA"] == colchon_combo].index[0]
 
@@ -1895,7 +1904,7 @@ with tab_venta:
 
                             guardar_csv(df_inv, FILE_INV)
                             cat_guardar = f"COMBO: {cama_combo} + {colchon_combo}"
-                            msj_exito_det = f"🎉 Venta de Combo registrada. Se descontó 1 unidad de {cama_combo} y 1 de {colchon_combo}."
+                            msj_exito_det = f"🎉 Venta de Combo registrada a ${precio_producto:,.2f}. Se descontó 1 unidad de {cama_combo} y 1 de {colchon_combo}."
 
                         else:
 
