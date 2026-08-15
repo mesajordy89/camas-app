@@ -59,16 +59,19 @@ COLUMNAS_VENTAS = [
 
 
 # ============================================================
-#                 FUNCIÓN PARA HTML
+#            FUNCIÓN PARA HTML (CORREGIDA DE RAÍZ)
 # ============================================================
 
 def html(contenido):
     """
     Permite utilizar HTML correctamente en Streamlit
-    eliminando espacios de indentación innecesarios.
+    eliminando saltos de línea y sangrías redundantes que
+    hacen que Markdown interprete el HTML como texto o código plano.
     """
+    texto_limpio = textwrap.dedent(contenido).strip()
+    texto_limpio = " ".join(line.strip() for line in texto_limpio.splitlines())
     return st.markdown(
-        textwrap.dedent(contenido).strip(),
+        texto_limpio,
         unsafe_allow_html=True,
     )
 
@@ -87,17 +90,7 @@ def guardar_csv(df, ruta):
 
 
 def normalizar_inventario(df):
-    """
-    Normaliza el inventario.
-
-    Cada fila representa un producto o subproducto.
-
-    Ejemplo:
-
-    Camas
-    Camas - Cama de 3 plazas
-    Camas - Cama de 2 plazas
-    """
+    """Normaliza el inventario."""
 
     if "CATEGORIA" not in df.columns:
         df["CATEGORIA"] = ""
@@ -2426,8 +2419,6 @@ with tab_apartado:
                             )
                         )
 
-                        # Si se paga todo de una vez,
-                        # se descuenta el SUBPRODUCTO correcto.
                         if saldo_apartado <= 0:
 
                             indice = df_inv[
@@ -2759,11 +2750,6 @@ with tab_apartado:
                         "Pagado y Entregado"
                     )
 
-                    # ----------------------------------------
-                    # CORRECCIÓN:
-                    # DESCONTAR EL SUBPRODUCTO EXACTO
-                    # ----------------------------------------
-
                     producto_entregado = str(
                         registro_ap[
                             "CATEGORIA"
@@ -2942,10 +2928,6 @@ with tab_inventario:
             "✅ Acceso concedido."
         )
 
-        # ----------------------------------------------------
-        # MODIFICAR PRODUCTO
-        # ----------------------------------------------------
-
         st.markdown(
             "### ✏️ 1. Cambiar stock o precio"
         )
@@ -2982,8 +2964,6 @@ with tab_inventario:
 
             with m2:
 
-                # Las categorías principales
-                # con subproductos no necesitan precio.
                 if es_categoria_principal(
                     df_inv,
                     producto_modificar,
@@ -3013,10 +2993,6 @@ with tab_inventario:
                     key="cambio_stock_inventario",
                 )
             )
-
-            # -----------------------------------------------
-            # PRECIO
-            # -----------------------------------------------
 
             if es_categoria_principal(
                 df_inv,
@@ -3088,8 +3064,6 @@ with tab_inventario:
 
                 else:
 
-                    # Categoría principal:
-                    # siempre dejamos precio 0.
                     df_inv.loc[
                         indice,
                         "PRECIO",
@@ -3108,10 +3082,6 @@ with tab_inventario:
 
 
         st.markdown("---")
-
-        # ----------------------------------------------------
-        # CREAR PRODUCTO / SUBPRODUCTO
-        # ----------------------------------------------------
 
         st.markdown(
             "### ➕ 2. Agregar producto o subproducto"
@@ -3282,10 +3252,6 @@ with tab_inventario:
 
         st.markdown("---")
 
-        # ----------------------------------------------------
-        # INVENTARIO VISUAL
-        # ----------------------------------------------------
-
         st.markdown(
             "### 📊 3. Productos y precios"
         )
@@ -3387,10 +3353,6 @@ with tab_inventario:
 
 
         st.markdown("---")
-
-        # ----------------------------------------------------
-        # ELIMINAR
-        # ----------------------------------------------------
 
         st.markdown(
             "### 🗑️ 4. Eliminar producto"
