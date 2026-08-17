@@ -1,4 +1,4 @@
-import streamlit as st
+¡import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
@@ -13,69 +13,61 @@ FILE_INV = "inventario_mesitas.csv"
 FILE_VENTAS = "ventas_mesitas.csv"
 FILE_APARTADOS = "apartados_mesitas.csv"
 
-# Teléfonos de los dos dueños (+593 Ecuador)
 NUMEROS_DUENOS = {
     "Dueño 1": "593990847819",
     "Dueño 2": "593983576800"
 }
+
+# --- DATOS POR DEFECTO DEL INVENTARIO ---
+INVENTARIO_INICIAL = [
+    {"CATEGORIA": "CAMA 1.5 PLAZAS", "STOCK": 10, "STOCK_MINIMO": 2, "PRECIO": 180.0, "COSTO": 120.0, "MEDIDA": "1.5 Plaza", "CAMA_BASE": "NO", "COLCHON_BASE": "NO", "ES_TITULO": "NO", "PADRE": "CAMAS"},
+    {"CATEGORIA": "CAMA 2 PLAZAS", "STOCK": 10, "STOCK_MINIMO": 2, "PRECIO": 220.0, "COSTO": 150.0, "MEDIDA": "2 Plazas", "CAMA_BASE": "NO", "COLCHON_BASE": "NO", "ES_TITULO": "NO", "PADRE": "CAMAS"},
+    {"CATEGORIA": "COLCHÓN 1.5 PLAZAS", "STOCK": 8, "STOCK_MINIMO": 2, "PRECIO": 120.0, "COSTO": 80.0, "MEDIDA": "1.5 Plaza", "CAMA_BASE": "NO", "COLCHON_BASE": "NO", "ES_TITULO": "NO", "PADRE": "COLCHONES"},
+    {"CATEGORIA": "COLCHÓN 2 PLAZAS", "STOCK": 8, "STOCK_MINIMO": 2, "PRECIO": 150.0, "COSTO": 100.0, "MEDIDA": "2 Plazas", "CAMA_BASE": "NO", "COLCHON_BASE": "NO", "ES_TITULO": "NO", "PADRE": "COLCHONES"},
+    {"CATEGORIA": "VELADOR ESTÁNDAR", "STOCK": 15, "STOCK_MINIMO": 3, "PRECIO": 45.0, "COSTO": 25.0, "MEDIDA": "Estándar", "CAMA_BASE": "NO", "COLCHON_BASE": "NO", "ES_TITULO": "NO", "PADRE": "MUEBLES"},
+]
 
 # --- ESTILOS CSS ---
 st.markdown("""
 <style>
     .stApp { background-color: #f8fafc; font-family: 'Inter', sans-serif; }
     .catalog-card {
-        background: #ffffff;
-        border-radius: 16px;
-        border: 1px solid #e2e8f0;
-        padding: 16px;
-        margin-bottom: 16px;
-        min-height: 250px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
+        background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0;
+        padding: 16px; margin-bottom: 16px; min-height: 230px;
+        display: flex; flex-direction: column; justify-content: space-between;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
     .card-img-header {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-        border-radius: 12px;
-        height: 100px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.5rem;
-        margin-bottom: 12px;
-    }
-    .catalog-title {
-        font-size: 1rem;
-        font-weight: 600;
-        color: #1e293b;
-        margin: 8px 0;
-        line-height: 1.3;
-        min-height: 2.6em;
-    }
-    .catalog-price {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: #0f172a;
+        border-radius: 12px; height: 90px; display: flex;
+        align-items: center; justify-content: center; font-size: 2.5rem;
         margin-bottom: 8px;
     }
+    .catalog-title { font-size: 1rem; font-weight: 600; color: #1e293b; margin: 4px 0; }
+    .catalog-price { font-size: 1.25rem; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
 </style>
 """, unsafe_allow_html=True)
 
 
-# --- FUNCIONES BASE CON VALIDACIÓN ---
-def cargar_csv(filepath, columnas_defecto):
+# --- FUNCIONES BASE ---
+def cargar_csv(filepath, columnas_defecto, datos_iniciales=None):
     if os.path.exists(filepath):
         try:
             df = pd.read_csv(filepath)
+            if df.empty and datos_iniciales:
+                df = pd.DataFrame(datos_iniciales)
+                df.to_csv(filepath, index=False)
+                return df
             for col in columnas_defecto:
                 if col not in df.columns:
-                    df[col] = "NO" if col == "ES_TITULO" else (0 if col in ["STOCK", "PRECIO", "COSTO"] else "")
+                    df[col] = "NO" if col == "ES_TITULO" else ""
             return df
         except Exception:
-            return pd.DataFrame(columns=columnas_defecto)
+            df = pd.DataFrame(datos_iniciales) if datos_iniciales else pd.DataFrame(columns=columnas_defecto)
+            df.to_csv(filepath, index=False)
+            return df
     else:
-        df = pd.DataFrame(columns=columnas_defecto)
+        df = pd.DataFrame(datos_iniciales) if datos_iniciales else pd.DataFrame(columns=columnas_defecto)
         df.to_csv(filepath, index=False)
         return df
 
@@ -99,11 +91,9 @@ def generar_link_whatsapp(numero, venta_dict):
     return f"https://wa.me/{numero}?text={urllib.parse.quote(mensaje)}"
 
 def producto_es_vendible(df_inv, categoria):
-    if df_inv.empty or "CATEGORIA" not in df_inv.columns:
-        return False
+    if df_inv.empty or "CATEGORIA" not in df_inv.columns: return False
     fila = df_inv[df_inv["CATEGORIA"] == categoria]
-    if fila.empty: 
-        return False
+    if fila.empty: return False
     row = fila.iloc[0]
     es_titulo = str(row.get("ES_TITULO", "NO")).strip().upper() in ["SI", "SÍ", "TRUE", "1"]
     cama_base = str(row.get("CAMA_BASE", "NO")).strip().upper() == "SI"
@@ -116,7 +106,7 @@ COLS_INV = ["CATEGORIA", "STOCK", "STOCK_MINIMO", "PRECIO", "COSTO", "MEDIDA", "
 COLS_VENTAS = ["FECHA", "CATEGORIA", "CANTIDAD", "PRECIO_UNITARIO", "TOTAL", "ABONADO", "SALDO_PENDIENTE", "METODO_PAGO", "CLIENTE", "CEDULA", "TELEFONO", "CORREO", "DIRECCION", "ESTADO", "FOTO"]
 COLS_APARTADOS = ["ID", "FECHA", "CLIENTE", "TELEFONO", "CATEGORIA", "TOTAL", "ABONADO", "SALDO", "ESTADO", "FECHA_ENTREGA"]
 
-if "df_inv" not in st.session_state: st.session_state["df_inv"] = cargar_csv(FILE_INV, COLS_INV)
+if "df_inv" not in st.session_state: st.session_state["df_inv"] = cargar_csv(FILE_INV, COLS_INV, INVENTARIO_INICIAL)
 if "df_ventas" not in st.session_state: st.session_state["df_ventas"] = cargar_csv(FILE_VENTAS, COLS_VENTAS)
 if "df_apartados" not in st.session_state: st.session_state["df_apartados"] = cargar_csv(FILE_APARTADOS, COLS_APARTADOS)
 if "carrito" not in st.session_state: st.session_state["carrito"] = []
@@ -256,41 +246,38 @@ with tab_venta:
         st.session_state["abrir_dialogo"] = False
         st.rerun()
 
-    if df_inv.empty or "CATEGORIA" not in df_inv.columns:
-        st.info("📦 No hay productos registrados en el inventario.")
+    subproductos = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]
+
+    if subproductos.empty:
+        st.info("📦 No hay productos disponibles.")
     else:
-        subproductos = df_inv[df_inv["CATEGORIA"].apply(lambda x: producto_es_vendible(df_inv, x))]
+        cols_per_row = 3
+        cols = st.columns(cols_per_row)
 
-        if subproductos.empty:
-            st.info("📦 No hay productos disponibles para venta directa.")
-        else:
-            cols_per_row = 3
-            cols = st.columns(cols_per_row)
+        for idx, (_, row) in enumerate(subproductos.iterrows()):
+            stk = int(row.get('STOCK', 0))
+            icono = "🛏️" if "CAMA" in str(row['CATEGORIA']).upper() else "💤"
 
-            for idx, (_, row) in enumerate(subproductos.iterrows()):
-                stk = int(row.get('STOCK', 0))
-                icono = "🛏️" if "CAMA" in str(row['CATEGORIA']).upper() else "💤"
-
-                with cols[idx % cols_per_row]:
-                    st.markdown(f"""
-                    <div class="catalog-card">
-                        <div>
-                            <div class="card-img-header">
-                                <span>{icono}</span>
-                            </div>
-                            <div class="catalog-title">{row['CATEGORIA']}</div>
+            with cols[idx % cols_per_row]:
+                st.markdown(f"""
+                <div class="catalog-card">
+                    <div>
+                        <div class="card-img-header">
+                            <span>{icono}</span>
                         </div>
-                        <div class="catalog-price">${float(row['PRECIO']):,.2f}</div>
+                        <div class="catalog-title">{row['CATEGORIA']}</div>
                     </div>
-                    """, unsafe_allow_html=True)
+                    <div class="catalog-price">${float(row['PRECIO']):,.2f}</div>
+                </div>
+                """, unsafe_allow_html=True)
 
-                    if stk > 0:
-                        if st.button(f"🛒 Agregar ({stk} dispon.)", key=f"add_{idx}", use_container_width=True):
-                            st.session_state["carrito"].append({"producto": row['CATEGORIA'], "cantidad": 1, "precio": float(row['PRECIO'])})
-                            st.session_state["abrir_dialogo"] = True
-                            st.rerun()
-                    else:
-                        st.button("🚫 Sin Stock", key=f"dis_{idx}", disabled=True, use_container_width=True)
+                if stk > 0:
+                    if st.button(f"🛒 Agregar ({stk} dispon.)", key=f"add_{idx}", use_container_width=True):
+                        st.session_state["carrito"].append({"producto": row['CATEGORIA'], "cantidad": 1, "precio": float(row['PRECIO'])})
+                        st.session_state["abrir_dialogo"] = True
+                        st.rerun()
+                else:
+                    st.button("🚫 Sin Stock", key=f"dis_{idx}", disabled=True, use_container_width=True)
 
 # 2. APARTADOS
 with tab_apartados:
