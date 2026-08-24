@@ -19,14 +19,14 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="Local Mesitas - Sistema POS",
+    page_title="Local RM MUEBLERIA - Sistema POS",
     page_icon="🛏️",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
 CLAVE_ACCESO = "1234"
-CLAVE_ADMIN = "1234"
+CLAVE_ADMIN = "JOTAPRO"
 
 FILE_INV = "inventario.csv"
 FILE_VENTAS = "ventas.csv"
