@@ -5,6 +5,7 @@ import textwrap
 import urllib.parse
 import pandas as pd
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 
 # Cargar reportlab para comprobantes PDF
 try:
@@ -19,17 +20,15 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="Local RM MUEBLERIA - Sistema POS",
+    page_title="Local Mesitas - Sistema POS",
     page_icon="🛏️",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
 CLAVE_ACCESO = "1234"
-CLAVE_ADMIN = "JOTAPRO"
+CLAVE_ADMIN = "1234"
 
-FILE_INV = "inventario.csv"
-FILE_VENTAS = "ventas.csv"
 CARPETA_FOTOS = "fotos_ventas"
 
 NUMEROS_WHATSAPP = {
@@ -46,16 +45,15 @@ COLUMNAS_VENTAS = [
 ]
 
 # ============================================================
-#            FUNCIONES AUXILIARES Y MANEJO DE DATOS
+#       CONEXIÓN PERMANENTE CON GOOGLE SHEETS (CORRECCIÓN)
 # ============================================================
+
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 def html(contenido):
     texto_limpio = textwrap.dedent(contenido).strip()
     texto_limpio = " ".join(line.strip() for line in texto_limpio.splitlines())
     return st.markdown(texto_limpio, unsafe_allow_html=True)
-
-def guardar_csv(df, ruta):
-    df.to_csv(ruta, index=False, encoding="utf-8-sig")
 
 def normalizar_inventario(df_input):
     if df_input is None or df_input.empty:
@@ -101,26 +99,31 @@ def normalizar_ventas(df_input):
     return df[COLUMNAS_VENTAS]
 
 def cargar_inventario():
-    if os.path.exists(FILE_INV):
-        try: df = pd.read_csv(FILE_INV, encoding="utf-8-sig")
-        except Exception: df = pd.DataFrame()
-    else:
+    try:
+        df = conn.read(worksheet="Inventario", ttl=0)
+    except Exception:
         df = pd.DataFrame([
             {"CATEGORIA": "CAMAS - CAMA TAPIZADA DE LUCES 2PLZ", "STOCK": 5, "PRECIO": 150.0, "STOCK_MINIMO": 2},
             {"CATEGORIA": "COLCHONES - COLCHON SUEÑO TOTAL 2PLZS", "STOCK": 5, "PRECIO": 100.0, "STOCK_MINIMO": 2},
         ])
     df = normalizar_inventario(df)
-    guardar_csv(df, FILE_INV)
     return df
 
+def guardar_inventario(df):
+    df_norm = normalizar_inventario(df)
+    conn.update(worksheet="Inventario", data=df_norm)
+
 def cargar_ventas():
-    if os.path.exists(FILE_VENTAS):
-        try: df = pd.read_csv(FILE_VENTAS, encoding="utf-8-sig")
-        except Exception: df = pd.DataFrame()
-    else: df = pd.DataFrame()
+    try:
+        df = conn.read(worksheet="Ventas", ttl=0)
+    except Exception:
+        df = pd.DataFrame()
     df = normalizar_ventas(df)
-    guardar_csv(df, FILE_VENTAS)
     return df
+
+def guardar_ventas(df):
+    df_norm = normalizar_ventas(df)
+    conn.update(worksheet="Ventas", data=df_norm)
 
 def generar_pdf_recibo(venta_dict):
     if not HAS_REPORTLAB: return None
@@ -399,7 +402,7 @@ def abrir_modal_venta():
                 for item in st.session_state["carrito"]:
                     df_inv_local.loc[df_inv_local["CATEGORIA"] == item["producto"], "STOCK"] -= item["cantidad"]
                 
-                guardar_csv(df_inv_local, FILE_INV)
+                guardar_inventario(df_inv_local)
                 st.session_state["df_inv"] = df_inv_local
 
                 resumen_prods = " + ".join([f"{it['producto']} (x{it['cantidad']})" for it in st.session_state["carrito"]])
@@ -424,7 +427,7 @@ def abrir_modal_venta():
                 }
 
                 df_v_act = pd.concat([st.session_state["df_ventas"], pd.DataFrame([nueva_v_dict])], ignore_index=True)
-                guardar_csv(df_v_act, FILE_VENTAS)
+                guardar_ventas(df_v_act)
                 st.session_state["df_ventas"] = df_v_act
                 st.session_state["ultima_venta"] = nueva_v_dict
                 st.session_state["carrito"] = []
@@ -594,7 +597,7 @@ with tab_apartado:
                         est_ap = "Pagado y Entregado" if saldo_ap <= 0 else "Apartado (Pendiente)"
                         
                         df_inv.loc[df_inv["CATEGORIA"] == prod_ap, "STOCK"] -= cant_ap
-                        guardar_csv(df_inv, FILE_INV)
+                        guardar_inventario(df_inv)
                         st.session_state["df_inv"] = df_inv
 
                         nuevo_ap = {
@@ -608,7 +611,7 @@ with tab_apartado:
                         }
 
                         df_v_act = pd.concat([st.session_state["df_ventas"], pd.DataFrame([nuevo_ap])], ignore_index=True)
-                        guardar_csv(df_v_act, FILE_VENTAS)
+                        guardar_ventas(df_v_act)
                         st.session_state["df_ventas"] = df_v_act
                         st.session_state["ultima_venta"] = nuevo_ap
 
@@ -640,7 +643,7 @@ with tab_apartado:
                 if df_ventas.loc[idx_real, "SALDO_PENDIENTE"] <= 0:
                     df_ventas.loc[idx_real, "ESTADO"] = "Pagado y Entregado"
                 
-                guardar_csv(df_ventas, FILE_VENTAS)
+                guardar_ventas(df_ventas)
                 st.session_state["df_ventas"] = df_ventas
                 st.success("✅ ¡Abono procesado con éxito!")
                 st.rerun()
@@ -668,7 +671,7 @@ with tab_inventario:
                 if nom.strip() and not existe_producto(df_inv, nom.strip()):
                     nuevo_df = pd.DataFrame([{"CATEGORIA": nom.strip(), "STOCK": 0, "PRECIO": 0.0, "STOCK_MINIMO": 1}])
                     df_inv = pd.concat([df_inv, nuevo_df], ignore_index=True)
-                    guardar_csv(df_inv, FILE_INV)
+                    guardar_inventario(df_inv)
                     st.session_state["df_inv"] = df_inv
                     st.success("Creado correctamente.")
                     st.rerun()
@@ -682,7 +685,7 @@ with tab_inventario:
                 if nom.strip() and not existe_producto(df_inv, nom.strip()):
                     nuevo_df = pd.DataFrame([{"CATEGORIA": nom.strip(), "STOCK": stk, "PRECIO": prc, "STOCK_MINIMO": 1}])
                     df_inv = pd.concat([df_inv, nuevo_df], ignore_index=True)
-                    guardar_csv(df_inv, FILE_INV)
+                    guardar_inventario(df_inv)
                     st.session_state["df_inv"] = df_inv
                     st.success("Creado correctamente.")
                     st.rerun()
@@ -695,7 +698,7 @@ with tab_inventario:
                 if sub_nom.strip() and not existe_producto(df_inv, full_nom):
                     nuevo_df = pd.DataFrame([{"CATEGORIA": full_nom, "STOCK": stk, "PRECIO": prc, "STOCK_MINIMO": 1}])
                     df_inv = pd.concat([df_inv, nuevo_df], ignore_index=True)
-                    guardar_csv(df_inv, FILE_INV)
+                    guardar_inventario(df_inv)
                     st.session_state["df_inv"] = df_inv
                     st.success("Subproducto creado.")
                     st.rerun()
@@ -758,7 +761,7 @@ with tab_historial:
             if st.button("🗑️ ELIMINAR VENTAS SELECCIONADAS", use_container_width=True, disabled=(cant_seleccionada == 0)):
                 if pwd_borrado == CLAVE_ADMIN:
                     df_filtrado = df_editado[df_editado["SELECCIONAR"] == False].drop(columns=["SELECCIONAR"])
-                    guardar_csv(df_filtrado, FILE_VENTAS)
+                    guardar_ventas(df_filtrado)
                     st.session_state["df_ventas"] = df_filtrado
                     st.session_state["ultima_venta"] = None
                     st.success(f"✅ Se eliminaron {cant_seleccionada} registro(s) correctamente.")
@@ -770,7 +773,7 @@ with tab_historial:
             if st.button("🔥 BORRAR TODO EL HISTORIAL COMPLETO", use_container_width=True):
                 if pwd_borrado == CLAVE_ADMIN:
                     df_v_vacio = pd.DataFrame(columns=COLUMNAS_VENTAS)
-                    guardar_csv(df_v_vacio, FILE_VENTAS)
+                    guardar_ventas(df_v_vacio)
                     st.session_state["df_ventas"] = df_v_vacio
                     st.session_state["ultima_venta"] = None
                     st.success("✅ Se ha vaciado todo el historial de ventas.")
@@ -779,4 +782,3 @@ with tab_historial:
                     st.error("❌ Clave de administrador incorrecta.")
     else:
         st.info("Sin registros de ventas.")
-        
