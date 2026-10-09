@@ -79,7 +79,9 @@ def normalizar_ventas(df_input):
     df = df_input.copy()
     for columna in COLUMNAS_VENTAS:
         if columna not in df.columns:
-            if columna == "ABONADO": df[columna] = pd.to_numeric(df.get("TOTAL", 0), errors="coerce").fillna(0.0)
+            if columna == "ABONADO":
+                total = df["TOTAL"] if "TOTAL" in df.columns else pd.Series(0.0, index=df.index)
+                df[columna] = pd.to_numeric(total, errors="coerce").fillna(0.0)
             elif columna == "SALDO_PENDIENTE": df[columna] = 0.0
             elif columna == "ESTADO": df[columna] = "Pagado y Entregado"
             elif columna == "DIRECCION": df[columna] = "S/N"
@@ -101,11 +103,8 @@ def normalizar_ventas(df_input):
 def cargar_inventario():
     try:
         df = conn.read(worksheet="Inventario", ttl=0)
-    except Exception:
-        df = pd.DataFrame([
-            {"CATEGORIA": "CAMAS - CAMA TAPIZADA DE LUCES 2PLZ", "STOCK": 5, "PRECIO": 150.0, "STOCK_MINIMO": 2},
-            {"CATEGORIA": "COLCHONES - COLCHON SUEÑO TOTAL 2PLZS", "STOCK": 5, "PRECIO": 100.0, "STOCK_MINIMO": 2},
-        ])
+    except Exception as exc:
+        raise RuntimeError(f"No se pudo leer la hoja Inventario de Google Sheets: {exc}") from exc
     df = normalizar_inventario(df)
     return df
 
@@ -116,8 +115,8 @@ def guardar_inventario(df):
 def cargar_ventas():
     try:
         df = conn.read(worksheet="Ventas", ttl=0)
-    except Exception:
-        df = pd.DataFrame()
+    except Exception as exc:
+        raise RuntimeError(f"No se pudo leer la hoja Ventas de Google Sheets: {exc}") from exc
     df = normalizar_ventas(df)
     return df
 
@@ -231,8 +230,13 @@ if "ultima_venta" not in st.session_state: st.session_state["ultima_venta"] = No
 if "carrito" not in st.session_state: st.session_state["carrito"] = []
 if "redirect_url" not in st.session_state: st.session_state["redirect_url"] = None
 
-if "df_inv" not in st.session_state: st.session_state["df_inv"] = cargar_inventario()
-if "df_ventas" not in st.session_state: st.session_state["df_ventas"] = cargar_ventas()
+try:
+    if "df_inv" not in st.session_state: st.session_state["df_inv"] = cargar_inventario()
+    if "df_ventas" not in st.session_state: st.session_state["df_ventas"] = cargar_ventas()
+except RuntimeError as exc:
+    st.error("No se pudieron cargar los datos. No realices cambios hasta recuperar la conexión.")
+    st.caption(str(exc))
+    st.stop()
 
 # ============================================================
 #                 LOGIN DE ACCESO
@@ -269,17 +273,32 @@ if not st.session_state["autenticado"]:
 
 html("""
 <style>
-.stApp { background:#f1f5f9; font-family: 'Segoe UI', sans-serif; }
-.header-box { background: linear-gradient(135deg, #0f172a, #1e3a8a); padding:25px; border-radius:20px; color:white; text-align:center; margin-bottom:15px; }
-.info-card { background:white; padding:15px; border-radius:15px; text-align:center; border:1px solid #e2e8f0; }
-.total-card { background: #eff6ff; border:2px solid #3b82f6; border-radius:15px; padding:15px; text-align:center; font-weight:bold; }
-.card-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-.badge-ok { background-color: #dcfce7; color: #15803d; }
-.badge-low { background-color: #fef3c7; color: #b45309; }
-.badge-out { background-color: #fee2e2; color: #b91c1c; }
-.prod-card-v2 { background: white; border-radius: 18px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,0.04); height: 100%; }
-.prod-title { font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 8px; margin-bottom: 4px; min-height: 44px; }
-.prod-price { font-size: 24px; font-weight: 900; color: #2563eb; margin: 6px 0; }
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap');
+:root { --ink:#17251f; --muted:#718078; --green:#176b4d; --paper:#f5f7f2; --line:#e4e9e2; }
+.stApp { background:var(--paper); color:var(--ink); font-family:'DM Sans',sans-serif; }
+.block-container { max-width:1420px; padding-top:1.25rem; padding-bottom:3rem; }
+[data-testid="stHeader"] { background:transparent; }
+.header-box { position:relative; overflow:hidden; background:linear-gradient(115deg,#133c2d 0%,#176b4d 65%,#26805d 100%); padding:30px 36px; border-radius:24px; color:white; text-align:left; margin:4px 0 22px; box-shadow:0 16px 40px #174c3525; }
+.header-box:after { content:'✦'; position:absolute; right:8%; top:-70px; font-size:240px; line-height:1; color:#ffffff0d; }
+.header-box div:first-child { font-family:'Manrope',sans-serif; letter-spacing:-1.5px; }
+.header-box div:last-child { margin-top:5px; color:#d1e7da !important; }
+.info-card { background:white; padding:19px 18px; border-radius:18px; text-align:left; border:1px solid var(--line); color:var(--muted); min-height:94px; box-shadow:0 5px 18px #1a38230a; line-height:1.8; }
+.info-card b { color:var(--ink); font-family:'Manrope',sans-serif; font-size:24px; }
+.total-card { background:#edf6e7; border:1px solid #cfe2c4; border-radius:16px; padding:16px; text-align:center; font-weight:800; color:#24523d; }
+.card-badge { display:inline-block; padding:5px 11px; border-radius:999px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; }
+.badge-ok { background:#e4f4e9; color:#267249; } .badge-low { background:#fff1cc; color:#936511; } .badge-out { background:#fde8e4; color:#a64032; }
+.prod-card-v2 { background:white; border-radius:20px; padding:22px; border:1px solid var(--line); box-shadow:0 8px 22px #17251f0a; min-height:150px; transition:transform .18s ease, box-shadow .18s ease; }
+.prod-card-v2:hover { transform:translateY(-3px); box-shadow:0 14px 28px #17251f16; }
+.prod-title { font-size:16px; font-weight:700; color:var(--ink); margin:12px 0 5px; min-height:42px; line-height:1.35; }
+.prod-price { font-family:'Manrope',sans-serif; font-size:25px; font-weight:800; color:var(--green); margin:5px 0; }
+.stTabs [data-baseweb="tab-list"] { gap:8px; border-bottom:1px solid var(--line); }
+.stTabs [data-baseweb="tab"] { background:white; border:1px solid var(--line); border-radius:12px 12px 0 0; padding:11px 18px; font-weight:700; }
+.stTabs [aria-selected="true"] { background:#e9f2e8 !important; color:var(--green) !important; border-bottom-color:#e9f2e8 !important; }
+.stButton button { border-radius:12px; font-weight:700; min-height:42px; }
+.stButton button[kind="primary"] { background:#176b4d; border-color:#176b4d; }
+[data-testid="stDataFrame"], [data-testid="stDataEditor"] { border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+[data-testid="stAlert"] { border-radius:14px; }
+@media (max-width:700px) { .block-container { padding:1rem 1rem 2rem; } .header-box { padding:23px; } .header-box div:first-child { font-size:29px !important; } }
 </style>
 """)
 
@@ -291,8 +310,8 @@ with col_s:
 
 html("""
 <div class="header-box">
-    <div style="font-size:38px; font-weight:900;">🛏️ LOCAL MESITAS</div>
-    <div style="font-size:16px; color:#cbd5e1;">Sistema POS • Control de Inventarios y Ventas</div>
+    <div style="font-size:38px; font-weight:900;">LOCAL MESITAS <span style="font-size:30px">✦</span></div>
+    <div style="font-size:16px;">Tu negocio, organizado en un solo lugar · Ventas · Inventario · Apartados</div>
 </div>
 """)
 
@@ -708,77 +727,39 @@ with tab_inventario:
         st.dataframe(df_inv, use_container_width=True)
 
 # ------------------------------------------------------------
-# TAB 4: HISTORIAL Y BORRADO SELECCIONABLE
+# TAB 4: HISTORIAL PROTEGIDO (CONSULTA Y EXPORTACIÓN)
 # ------------------------------------------------------------
 with tab_historial:
-    st.markdown("### 📜 Historial de Ventas y Eliminación Seleccionable")
-    
+    st.markdown("### 📜 Historial de ventas")
+    st.caption("Registro de consulta. Para cuidar la trazabilidad, las ventas no se borran desde esta pantalla.")
+
     if not df_ventas.empty:
-        csv_data = df_ventas.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
+        filtro_cliente = st.text_input("Buscar por cliente, producto o teléfono", key="buscar_historial")
+        vista = df_ventas.copy()
+        if filtro_cliente.strip():
+            mascara = vista.astype(str).apply(
+                lambda columna: columna.str.contains(filtro_cliente.strip(), case=False, na=False, regex=False)
+            ).any(axis=1)
+            vista = vista[mascara]
+
+        csv_data = vista.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
         st.download_button(
-            label="📊 Descargar Historial Completo (Excel / CSV)",
+            label="⬇️ Descargar registros visibles (CSV)",
             data=csv_data,
             file_name=f"ventas_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
-            use_container_width=True
+            use_container_width=False,
         )
-
-        st.markdown("#### 🔍 Selecciona con el check (☑️) las ventas que deseas eliminar:")
-        
-        df_display = df_ventas.copy()
-        df_display.insert(0, "SELECCIONAR", False)
-
-        df_editado = st.data_editor(
-            df_display,
+        st.dataframe(
+            vista,
             hide_index=True,
             use_container_width=True,
             column_config={
-                "SELECCIONAR": st.column_config.CheckboxColumn("Eliminar", default=False),
                 "TOTAL": st.column_config.NumberColumn("Total", format="$%.2f"),
                 "ABONADO": st.column_config.NumberColumn("Abonado", format="$%.2f"),
-                "SALDO_PENDIENTE": st.column_config.NumberColumn("Saldo", format="$%.2f"),
+                "SALDO_PENDIENTE": st.column_config.NumberColumn("Saldo pendiente", format="$%.2f"),
             },
-            disabled=[col for col in COLUMNAS_VENTAS],
-            key="editor_ventas"
         )
-
-        filas_seleccionadas = df_editado[df_editado["SELECCIONAR"] == True]
-        cant_seleccionada = len(filas_seleccionadas)
-
-        st.markdown("---")
-        st.markdown("### 🗑️ Panel de Borrado de Registros")
-        
-        col_b1, col_b2 = st.columns([1, 1])
-        with col_b1:
-            st.info(f"📌 Registros marcados para eliminar: **{cant_seleccionada}**")
-        
-        with col_b2:
-            pwd_borrado = st.text_input("🔐 Clave Administrador para borrar", type="password", key="pwd_borrar_sel")
-
-        c_btn1, c_btn2 = st.columns(2)
-        
-        with c_btn1:
-            if st.button("🗑️ ELIMINAR VENTAS SELECCIONADAS", use_container_width=True, disabled=(cant_seleccionada == 0)):
-                if pwd_borrado == CLAVE_ADMIN:
-                    df_filtrado = df_editado[df_editado["SELECCIONAR"] == False].drop(columns=["SELECCIONAR"])
-                    guardar_ventas(df_filtrado)
-                    st.session_state["df_ventas"] = df_filtrado
-                    st.session_state["ultima_venta"] = None
-                    st.success(f"✅ Se eliminaron {cant_seleccionada} registro(s) correctamente.")
-                    st.rerun()
-                else:
-                    st.error("❌ Clave de administrador incorrecta.")
-
-        with c_btn2:
-            if st.button("🔥 BORRAR TODO EL HISTORIAL COMPLETO", use_container_width=True):
-                if pwd_borrado == CLAVE_ADMIN:
-                    df_v_vacio = pd.DataFrame(columns=COLUMNAS_VENTAS)
-                    guardar_ventas(df_v_vacio)
-                    st.session_state["df_ventas"] = df_v_vacio
-                    st.session_state["ultima_venta"] = None
-                    st.success("✅ Se ha vaciado todo el historial de ventas.")
-                    st.rerun()
-                else:
-                    st.error("❌ Clave de administrador incorrecta.")
+        st.caption(f"Mostrando {len(vista)} de {len(df_ventas)} registros.")
     else:
-        st.info("Sin registros de ventas.")
+        st.info("Todavía no hay ventas registradas.")
